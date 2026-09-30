@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Service Status</title>
+    <style>
+      body { max-width: 640px; margin: 4rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; color: #243447; background: #f5f7fa; }
+      main { padding: 2rem; background: white; border: 1px solid #d8dfe8; border-radius: 8px; }
+      h1 { margin-top: 0; }
+      dt { font-weight: 600; margin-top: 1rem; }
+      dd { margin: 0.25rem 0; }
+      button { padding: 0.6rem 1rem; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Service Status</h1>
+      <p>A small application for learning how to build, test, and deploy a service.</p>
+      <dl>
+        <dt>Application</dt><dd id="name">Loading…</dd>
+        <dt>Version</dt><dd id="version">Loading…</dd>
+        <dt>Health</dt><dd id="health" role="status">Checking…</dd>
+      </dl>
+      <button id="refresh" type="button">Check again</button>
+    </main>
+    <script>
+      const button = document.getElementById("refresh");
+
+      async function checkStatus() {
+        button.disabled = true;
+        document.getElementById("health").textContent = "Checking…";
+        try {
+          const [infoResponse, healthResponse] = await Promise.all([
+            fetch("/api/info", { cache: "no-store" }),
+            fetch("/health", { cache: "no-store" })
+          ]);
+          if (!infoResponse.ok || !healthResponse.ok) {
+            throw new Error("Status request failed");
+          }
+          const info = await infoResponse.json();
+          const health = await healthResponse.json();
+          document.getElementById("name").textContent = info.name;
+          document.getElementById("version").textContent = info.version;
+          document.getElementById("health").textContent = health.status;
+        } catch (error) {
+          document.getElementById("name").textContent = "Unavailable";
+          document.getElementById("version").textContent = "Unavailable";
+          document.getElementById("health").textContent = "Could not reach the service. Try again.";
+        } finally {
+          button.disabled = false;
+        }
+      }
+
+      button.addEventListener("click", checkStatus);
+      checkStatus();
+    </script>
+  </body>
+</html>
