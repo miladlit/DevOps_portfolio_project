@@ -1,6 +1,7 @@
 """A small local HTTP server for the first project phase."""
 
 import json
+import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -34,8 +35,9 @@ class RequestHandler(BaseHTTPRequestHandler):
 
 
 def main():
-    with ThreadingHTTPServer(("127.0.0.1", 8000), RequestHandler) as server:
-        print("Service Status is running at http://127.0.0.1:8000", flush=True)
+    host = os.environ.get("APP_HOST", "127.0.0.1")
+    with ThreadingHTTPServer((host, 8000), RequestHandler) as server:
+        print(f"Service Status is listening on {host}:8000", flush=True)
         try:
             server.serve_forever()
         except KeyboardInterrupt:

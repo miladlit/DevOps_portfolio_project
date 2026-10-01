@@ -1,0 +1,9 @@
+# Only send the application and build instructions to Docker.
+*
+!Dockerfile
+!app/
+!app/**
+**/__pycache__/
+**/*.py[cod]
+**/.env
+**/.env.*

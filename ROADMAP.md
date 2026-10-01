@@ -1,11 +1,11 @@
 # Project roadmap
 
-Build on the same Service Status application one small stage at a time. Only Phase 1 is implemented. Each later phase should add one or two concepts, leave the application working, and update the README with commands that have been verified.
+Build on the same Service Status application one small stage at a time. Phase 1 is complete. Phase 2 configuration is added; image build and runtime verification are pending Docker daemon access. Each later phase should add one or two concepts, leave the application working, and update the README with commands that have been verified.
 
 | Phase | Focus | Working result / completion check |
 | --- | --- | --- |
 | 1 | Basic application and Git structure | Local frontend, Python API, health endpoint, basic HTTP tests, and setup instructions. |
-| 2 | Docker and Docker Compose | Build a container and run the app with Compose; verify `/health`. |
+| 2 | Docker and Docker Compose | Configuration added. Pending: build and run the container, verify `/health` and healthy status, then stop it cleanly. |
 | 3 | Automated testing | Expand failure-case coverage and document a repeatable test workflow. |
 | 4 | GitHub Actions CI | Run tests automatically on pushes and pull requests; demonstrate a failing check. |
 | 5 | CD/deployment pipeline | Package a versioned release and rehearse deployment and rollback locally; connect a server in Phase 6. |
