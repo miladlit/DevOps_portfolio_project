@@ -6,7 +6,7 @@ The application is **Service Status**: a small web page that displays the servic
 
 ## Current stage
 
-Phase 2: Docker and Docker Compose configuration added. Container runtime verification is pending local Docker access. There are no pipelines or cloud resources yet. Future work is tracked in [ROADMAP.md](ROADMAP.md).
+Phase 3: expanded automated HTTP tests and a repeatable test command. Phase 2 container runtime verification is still pending local Docker access. There are no pipelines or cloud resources yet. Future work is tracked in [ROADMAP.md](ROADMAP.md).
 
 ## Run locally
 
@@ -86,11 +86,41 @@ The health check only checks this process. It does not check a database or exter
 
 ## Run the tests
 
+From the repository root:
+
+```bash
+bash scripts/test.sh
+```
+
+The script locates the repository using its own path and runs Python's built-in test runner. You can also call it by its full path from another directory. A failure produces a nonzero exit code, which a future CI pipeline can use to stop a build.
+
+The underlying command is still available:
+
 ```bash
 python3 -m unittest discover -s tests -v
 ```
 
-The tests start their own server on a temporary local port, make real HTTP requests, and stop it afterward. You do not need to start the application first. They check the health endpoint, application info, homepage response, and an unknown route. Browser JavaScript is checked manually for now: open the page and confirm the name, version, and `ok` status appear.
+The seven tests start their own server on a temporary local port, make real HTTP requests, and stop it afterward. You do not need to start the application first, and port 8000 is not used by the tests.
+
+| Behavior | Why test it? |
+| --- | --- |
+| Health, application info, and homepage | Confirm normal requests return the expected content. |
+| Unknown route | Confirm a missing page returns `404` with a JSON error. |
+| API requests with query strings | A query such as `?source=test` should not break route matching. |
+| Requests for source files and parent paths | The server should only expose its explicit routes, not repository files. |
+| Unsupported POST followed by GET | The server should reject the method and still answer a health request. |
+
+The current standard-library handler returns `501` with an HTML error for unsupported methods; our unknown GET routes return JSON `404` errors. The tests document both behaviors. The file-path cases are regression checks, not a full security audit.
+
+To run only the error-recovery test:
+
+```bash
+python3 -m unittest discover -s tests -v -k unsupported_method
+```
+
+Read `FAIL` as an assertion mismatch and `ERROR` as an unexpected exception. Start with the named test and traceback. For a small learning exercise, temporarily change the expected health value in `test_health` from `ok` to `broken`, run the tests, then undo that edit and confirm they pass. Do not commit the deliberate failure.
+
+Browser JavaScript and Docker networking are not covered by these tests. Check the page manually and complete the container verification separately.
 
 ## Project structure
 
@@ -101,7 +131,9 @@ app/
   static/
     index.html          Frontend, styles, and browser JavaScript
 tests/
-  test_server.py        Basic HTTP tests
+  test_server.py        HTTP success, error, and regression tests
+scripts/
+  test.sh               Repeatable local test command
 Dockerfile             Package the application with Python
 compose.yaml           Container run settings and health check
 .dockerignore          Limit files sent to the image build
@@ -112,13 +144,13 @@ ROADMAP.md             Future phases
 
 ## Git workflow
 
-Keep each change small, run the tests, and inspect the diff before committing. For the Docker change:
+Keep each change small, run the tests, and inspect the diff before committing. For the testing change:
 
 ```bash
 git status
-git add Dockerfile compose.yaml .dockerignore app/server.py README.md ROADMAP.md
+git add tests/test_server.py scripts/test.sh README.md ROADMAP.md
 git diff --cached
-git commit -m "feat: containerize service status app with Docker Compose"
+git commit -m "test: expand HTTP regression coverage and add test runner"
 ```
 
 For later work, use a focused branch, for example `feat/docker-compose`. Write commit messages describing the actual change, such as `docs: explain local troubleshooting`. Never commit credentials or `.env` files; ignoring a file does not remove secrets already tracked by Git.
@@ -144,3 +176,7 @@ Before moving on, be able to explain what an HTTP route is, why the frontend req
 ## Phase 2 learning checkpoint
 
 Explain the difference between an image and a container, why the server needs a different bind address inside Docker, and how to inspect logs and health. Before moving on, complete the container checks above and stop the stack with `docker compose down`.
+
+## Phase 3 learning checkpoint
+
+Explain why an error response can be a passing test, how `subTest` identifies a failing input, and why test commands must return a failure exit code. Run the full suite before each commit. Container verification remains a separate unfinished check before starting CI.
