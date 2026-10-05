@@ -8,7 +8,7 @@ from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from app.server import RequestHandler, StatusServer
+from app.server import RequestHandler, StatusServer, main
 
 
 class ServerTests(unittest.TestCase):
@@ -94,3 +94,46 @@ class ServerTests(unittest.TestCase):
             with self.subTest(path=path):
                 with urlopen(self.base_url + path, timeout=5) as response:
                     self.assertEqual(response.headers["Cache-Control"], "no-store")
+
+    def test_head_matches_get_headers_without_body(self):
+        with patch("app.server.time.monotonic", return_value=self.server.started_monotonic + 10):
+            for path in ("/", "/health", "/api/info", "/api/status?source=test"):
+                with self.subTest(path=path):
+                    with urlopen(self.base_url + path, timeout=5) as response:
+                        expected_headers = response.headers
+                        expected_length = len(response.read())
+                    request = Request(self.base_url + path, method="HEAD")
+                    with urlopen(request, timeout=5) as response:
+                        self.assertEqual(response.status, 200)
+                        self.assertEqual(response.read(), b"")
+                        self.assertEqual(int(response.headers["Content-Length"]), expected_length)
+                        for header in ("Content-Type", "Cache-Control"):
+                            self.assertEqual(response.headers[header], expected_headers[header])
+
+    def test_head_unknown_route(self):
+        request = Request(self.base_url + "/missing", method="HEAD")
+        with self.assertRaises(HTTPError) as caught:
+            urlopen(request, timeout=5)
+        with caught.exception as response:
+            self.assertEqual(response.code, 404)
+            self.assertEqual(response.read(), b"")
+
+
+class ConfigurationTests(unittest.TestCase):
+    def test_default_and_custom_port(self):
+        for environment, expected_port in (({}, 8000), ({"APP_PORT": "9000"}, 9000)):
+            with self.subTest(environment=environment):
+                with patch.dict("os.environ", environment, clear=True):
+                    with patch("app.server.StatusServer") as server_class, patch("builtins.print"):
+                        main()
+                        server_class.assert_called_once_with(("127.0.0.1", expected_port), RequestHandler)
+                        server_class.return_value.__enter__.return_value.serve_forever.assert_called_once()
+
+    def test_invalid_port_fails_before_startup(self):
+        for value in ("", "abc", "1.5", "0", "-1", "65536"):
+            with self.subTest(value=value):
+                with patch.dict("os.environ", {"APP_PORT": value}):
+                    with patch("app.server.StatusServer") as server_class:
+                        with self.assertRaisesRegex(SystemExit, "APP_PORT must be an integer between 1 and 65535"):
+                            main()
+                        server_class.assert_not_called()

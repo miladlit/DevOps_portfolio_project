@@ -30,6 +30,19 @@ curl -i http://127.0.0.1:8000/api/info
 
 The health endpoint should return HTTP `200` and `{"status": "ok"}`.
 
+### Use a different local port
+
+Set `APP_PORT` when port 8000 is busy:
+
+```bash
+APP_PORT=9000 python3 -m app.server
+curl -I http://127.0.0.1:9000/health
+```
+
+Open **http://127.0.0.1:9000** for this run. The default port is 8000; invalid values outside the integer range 1–65535 stop startup with a clear message. `APP_HOST` still controls the bind address. The supplied Docker Compose configuration uses container port 8000; changing the container port also requires updating its port mapping and health check.
+
+`curl -I` sends a `HEAD` request. All GET routes also support HEAD, returning the same status and headers without a response body. Unknown HEAD routes return `404` without a body.
+
 ## Run with Docker Compose
 
 You need Docker Engine and Compose v2. The commands below use `docker compose`. If your installation provides the standalone v2 executable (as on this development machine), use `docker-compose` instead.
@@ -103,11 +116,13 @@ The underlying command is still available:
 python3 -m unittest discover -s tests -v
 ```
 
-The nine tests start their own server on a temporary local port, make real HTTP requests, and stop it afterward. You do not need to start the application first, and port 8000 is not used by the tests.
+The HTTP tests start their own server on a temporary local port, make real HTTP requests, and stop it afterward. You do not need to start the application first, and port 8000 is not used by the tests.
 
 | Behavior | Why test it? |
 | --- | --- |
 | Health, application info, and homepage | Confirm normal requests return the expected content. |
+| HEAD requests | Confirm successful and missing routes send headers without a body. |
+| Port configuration | Confirm default/custom ports and reject invalid values before startup. |
 | Runtime status and cache headers | Confirm elapsed time, timezone-aware startup time, and fresh status responses. |
 | Unknown route | Confirm a missing page returns `404` with a JSON error. |
 | API requests with query strings | A query such as `?source=test` should not break route matching. |

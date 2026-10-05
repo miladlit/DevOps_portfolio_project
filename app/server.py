@@ -37,6 +37,9 @@ class RequestHandler(BaseHTTPRequestHandler):
         else:
             self.send_json(404, {"error": "Not found"})
 
+    def do_HEAD(self):
+        self.do_GET()
+
     def send_json(self, status, data):
         self.send_body(status, json.dumps(data).encode("utf-8"), "application/json")
 
@@ -46,13 +49,20 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
-        self.wfile.write(body)
+        if self.command != "HEAD":
+            self.wfile.write(body)
 
 
 def main():
     host = os.environ.get("APP_HOST", "127.0.0.1")
-    with StatusServer((host, 8000), RequestHandler) as server:
-        print(f"Service Status is listening on {host}:8000", flush=True)
+    try:
+        port = int(os.environ.get("APP_PORT", "8000"))
+        if not 1 <= port <= 65535:
+            raise ValueError
+    except ValueError:
+        raise SystemExit("APP_PORT must be an integer between 1 and 65535.") from None
+    with StatusServer((host, port), RequestHandler) as server:
+        print(f"Service Status is listening on {host}:{server.server_port}", flush=True)
         try:
             server.serve_forever()
         except KeyboardInterrupt:
