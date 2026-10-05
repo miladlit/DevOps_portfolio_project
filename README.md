@@ -19,7 +19,7 @@ python3 --version
 python3 -m app.server
 ```
 
-Open **http://127.0.0.1:8000** in a browser. Use **Check again** to refresh the status. Stop the server with `Ctrl+C`.
+Open **http://127.0.0.1:8000** in a browser. Use **Check again** to refresh the status, or enable **Refresh every 10 seconds**. The page shows server uptime and the last successful check time. Requests time out after five seconds, allowing you to retry if the service stops responding. Stop the server with `Ctrl+C`.
 
 In a second terminal, you can check the API directly:
 
@@ -78,7 +78,10 @@ The Python tests and Compose configuration can be checked without Docker daemon 
 | --- | --- |
 | `GET /` | Serve the frontend |
 | `GET /api/info` | Return the application name and version |
+| `GET /api/status` | Return UTC startup time and uptime in seconds |
 | `GET /health` | Report that the HTTP service can respond |
+
+Uptime is measured with a monotonic clock and resets when the server restarts. `/api/status` returns `started_at` (an ISO 8601 UTC timestamp) and `uptime_seconds` (a number). Responses include `Cache-Control: no-store` so checks use fresh data.
 
 Unknown routes return HTTP `404` with a JSON error. Requests are logged to the terminal.
 
@@ -100,11 +103,12 @@ The underlying command is still available:
 python3 -m unittest discover -s tests -v
 ```
 
-The seven tests start their own server on a temporary local port, make real HTTP requests, and stop it afterward. You do not need to start the application first, and port 8000 is not used by the tests.
+The nine tests start their own server on a temporary local port, make real HTTP requests, and stop it afterward. You do not need to start the application first, and port 8000 is not used by the tests.
 
 | Behavior | Why test it? |
 | --- | --- |
 | Health, application info, and homepage | Confirm normal requests return the expected content. |
+| Runtime status and cache headers | Confirm elapsed time, timezone-aware startup time, and fresh status responses. |
 | Unknown route | Confirm a missing page returns `404` with a JSON error. |
 | API requests with query strings | A query such as `?source=test` should not break route matching. |
 | Requests for source files and parent paths | The server should only expose its explicit routes, not repository files. |
