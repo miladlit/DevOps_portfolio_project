@@ -20,39 +20,56 @@
       <dl>
         <dt>Application</dt><dd id="name">Loading…</dd>
         <dt>Version</dt><dd id="version">Loading…</dd>
+        <dt>Uptime</dt><dd id="uptime">Loading…</dd>
+        <dt>Last successful check</dt><dd id="checked">Never</dd>
         <dt>Health</dt><dd id="health" role="status">Checking…</dd>
       </dl>
       <button id="refresh" type="button">Check again</button>
+      <p><label><input id="auto-refresh" type="checkbox"> Refresh every 10 seconds</label></p>
     </main>
     <script>
       const button = document.getElementById("refresh");
 
       async function checkStatus() {
+        if (button.disabled) return;
         button.disabled = true;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
         document.getElementById("health").textContent = "Checking…";
         try {
-          const [infoResponse, healthResponse] = await Promise.all([
-            fetch("/api/info", { cache: "no-store" }),
-            fetch("/health", { cache: "no-store" })
+          const [infoResponse, healthResponse, statusResponse] = await Promise.all([
+            fetch("/api/info", { cache: "no-store", signal: controller.signal }),
+            fetch("/health", { cache: "no-store", signal: controller.signal }),
+            fetch("/api/status", { cache: "no-store", signal: controller.signal })
           ]);
-          if (!infoResponse.ok || !healthResponse.ok) {
+          if (!infoResponse.ok || !healthResponse.ok || !statusResponse.ok) {
             throw new Error("Status request failed");
           }
           const info = await infoResponse.json();
           const health = await healthResponse.json();
+          const status = await statusResponse.json();
+          const seconds = Math.floor(status.uptime_seconds);
+          document.getElementById("uptime").textContent =
+            `${Math.floor(seconds / 3600)}h ${Math.floor(seconds % 3600 / 60)}m ${seconds % 60}s`;
+          document.getElementById("checked").textContent = new Date().toLocaleTimeString();
           document.getElementById("name").textContent = info.name;
           document.getElementById("version").textContent = info.version;
           document.getElementById("health").textContent = health.status;
         } catch (error) {
+          document.getElementById("uptime").textContent = "Unavailable";
           document.getElementById("name").textContent = "Unavailable";
           document.getElementById("version").textContent = "Unavailable";
           document.getElementById("health").textContent = "Could not reach the service. Try again.";
         } finally {
+          clearTimeout(timeout);
           button.disabled = false;
         }
       }
 
       button.addEventListener("click", checkStatus);
+      setInterval(() => {
+        if (document.getElementById("auto-refresh").checked) checkStatus();
+      }, 10000);
       checkStatus();
     </script>
   </body>
