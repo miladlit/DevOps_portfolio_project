@@ -3,17 +3,18 @@
 import json
 import threading
 import unittest
-from http.server import ThreadingHTTPServer
+from datetime import datetime
+from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from app.server import RequestHandler
+from app.server import RequestHandler, StatusServer
 
 
 class ServerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.server = ThreadingHTTPServer(("127.0.0.1", 0), RequestHandler)
+        cls.server = StatusServer(("127.0.0.1", 0), RequestHandler)
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
         cls.thread.start()
         cls.base_url = f"http://127.0.0.1:{cls.server.server_port}"
@@ -77,3 +78,19 @@ class ServerTests(unittest.TestCase):
         with urlopen(self.base_url + "/health", timeout=5) as response:
             self.assertEqual(response.status, 200)
             self.assertEqual(json.load(response), {"status": "ok"})
+
+    def test_runtime_status(self):
+        with patch("app.server.time.monotonic", return_value=self.server.started_monotonic + 125.5):
+            with urlopen(self.base_url + "/api/status?source=test", timeout=5) as response:
+                self.assertEqual(response.status, 200)
+                self.assertEqual(response.headers.get_content_type(), "application/json")
+                status = json.load(response)
+        self.assertEqual(status["uptime_seconds"], 125.5)
+        self.assertEqual(status["started_at"], self.server.started_at)
+        self.assertIsNotNone(datetime.fromisoformat(status["started_at"]).tzinfo)
+
+    def test_status_responses_are_not_cached(self):
+        for path in ("/health", "/api/info", "/api/status"):
+            with self.subTest(path=path):
+                with urlopen(self.base_url + path, timeout=5) as response:
+                    self.assertEqual(response.headers["Cache-Control"], "no-store")
