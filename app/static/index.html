@@ -10,6 +10,9 @@
       h1 { margin-top: 0; }
       dt { font-weight: 600; margin-top: 1rem; }
       dd { margin: 0.25rem 0; }
+      table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+      th, td { text-align: left; padding: 0.6rem 0.3rem; border-bottom: 1px solid #d8dfe8; }
+      caption { text-align: left; margin-bottom: 0.5rem; }
       button { padding: 0.6rem 1rem; cursor: pointer; }
     </style>
   </head>
@@ -22,17 +25,53 @@
         <dt>Version</dt><dd id="version">Loading…</dd>
         <dt>Uptime</dt><dd id="uptime">Loading…</dd>
         <dt>Last successful check</dt><dd id="checked">Never</dd>
+        <dt>Check duration</dt><dd id="duration">Not checked</dd>
         <dt>Health</dt><dd id="health" role="status">Checking…</dd>
       </dl>
       <button id="refresh" type="button">Check again</button>
       <p><label><input id="auto-refresh" type="checkbox"> Refresh every 10 seconds</label></p>
+      <h2>Recent checks</h2>
+      <p id="summary" role="status">No checks yet.</p>
+      <table>
+        <caption>Last 20 checks in this tab (newest first)</caption>
+        <thead><tr><th scope="col">Time</th><th scope="col">Result</th><th scope="col">Duration</th></tr></thead>
+        <tbody id="history"></tbody>
+      </table>
+      <button id="clear-history" type="button">Clear history</button>
     </main>
     <script>
       const button = document.getElementById("refresh");
 
+      const checks = [];
+
+      function renderHistory() {
+        const history = document.getElementById("history");
+        history.replaceChildren();
+        for (const check of checks) {
+          const row = document.createElement("tr");
+          for (const value of [check.time, check.result, `${check.duration} ms`]) {
+            const cell = document.createElement("td");
+            cell.textContent = value;
+            row.appendChild(cell);
+          }
+          history.appendChild(row);
+        }
+        const successful = checks.filter(check => check.result === "OK").length;
+        document.getElementById("summary").textContent = checks.length
+          ? `${successful} of ${checks.length} recent checks succeeded.`
+          : "No checks yet.";
+      }
+
+      document.getElementById("clear-history").addEventListener("click", () => {
+        checks.length = 0;
+        renderHistory();
+      });
+
       async function checkStatus() {
         if (button.disabled) return;
         button.disabled = true;
+        const started = performance.now();
+        let result = "Failed";
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 5000);
         document.getElementById("health").textContent = "Checking…";
@@ -48,6 +87,12 @@
           const info = await infoResponse.json();
           const health = await healthResponse.json();
           const status = await statusResponse.json();
+          if (health.status !== "ok" || typeof info.name !== "string" ||
+              typeof info.version !== "string" || typeof status.uptime_seconds !== "number" ||
+              !Number.isFinite(status.uptime_seconds) || status.uptime_seconds < 0) {
+            throw new Error("Unexpected service response");
+          }
+          result = "OK";
           const seconds = Math.floor(status.uptime_seconds);
           document.getElementById("uptime").textContent =
             `${Math.floor(seconds / 3600)}h ${Math.floor(seconds % 3600 / 60)}m ${seconds % 60}s`;
@@ -56,12 +101,19 @@
           document.getElementById("version").textContent = info.version;
           document.getElementById("health").textContent = health.status;
         } catch (error) {
+          if (error.name === "AbortError") result = "Timed out";
           document.getElementById("uptime").textContent = "Unavailable";
           document.getElementById("name").textContent = "Unavailable";
           document.getElementById("version").textContent = "Unavailable";
           document.getElementById("health").textContent = "Could not reach the service. Try again.";
         } finally {
           clearTimeout(timeout);
+          controller.abort();
+          const duration = Math.round(performance.now() - started);
+          document.getElementById("duration").textContent = `${duration} ms`;
+          checks.unshift({ time: new Date().toLocaleTimeString(), result, duration });
+          checks.splice(20);
+          renderHistory();
           button.disabled = false;
         }
       }

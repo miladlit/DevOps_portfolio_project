@@ -30,6 +30,12 @@ curl -i http://127.0.0.1:8000/api/info
 
 The health endpoint should return HTTP `200` and `{"status": "ok"}`.
 
+### Review recent checks
+
+The dashboard measures each complete check (all three API requests and JSON parsing) and displays its duration in milliseconds. The recent-check table keeps the last 20 results in the current tab, including failures and five-second timeouts. A summary counts successful checks in that window; it is not a long-term availability metric.
+
+Use **Clear history** to reset the table and summary. Reloading the page also resets history. Check duration includes browser and network time, so it is not a server-only latency measurement. Unexpected API data is recorded as a failed check.
+
 ### Use a different local port
 
 Set `APP_PORT` when port 8000 is busy:
