@@ -1,0 +1,26 @@
+[Unit]
+Description=Service Status portfolio application
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=service-status
+Group=service-status
+WorkingDirectory=/opt/service-status/current
+ExecStart=/usr/bin/python3 -m app.server
+Environment=APP_HOST=127.0.0.1
+Environment=APP_PORT=8000
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

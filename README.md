@@ -6,11 +6,11 @@ The application is **Service Status**: a small web page that displays the servic
 
 ## Current stage
 
-Phase 5: local release packaging and extracted-release smoke checks are added. Phase 4 GitHub Actions CI configuration is added for the automated HTTP tests. Its first hosted run is pending a push to GitHub. Phase 2 container runtime verification is still pending local Docker access. There are no cloud resources yet. Future work is tracked in [ROADMAP.md](ROADMAP.md).
+Phase 6 preparation: a Linux systemd service unit and operational health check are added; installation on a VM is pending. Phase 5 local release packaging and extracted-release smoke checks are added. Phase 4 GitHub Actions CI configuration is added for the automated HTTP tests. Its first hosted run is pending a push to GitHub. Phase 2 container runtime verification is still pending local Docker access. There are no cloud resources yet. Future work is tracked in [ROADMAP.md](ROADMAP.md).
 
 ## Run locally
 
-You need Python 3.10 or newer and Git. The application and tests use only Python's standard library; there are no packages to install.
+You need Python 3.10 or newer and Git. The application uses only Python's standard library; there are no Python packages to install. Operational health-check tests also need Bash and curl and are skipped if those tools are missing.
 
 From the repository root (the directory containing this README):
 
@@ -204,6 +204,19 @@ python3 scripts/rehearse.py --previous d10e55f --candidate HEAD
 
 The revisions must resolve to different commits. Even if their application files are identical, this checks packaging and switching processes; it does not prove a behavior change. The port is chosen automatically, so the rehearsal does not stop an existing app or use port 8000. A failed candidate stops the rehearsal with a nonzero exit code; this is a controlled exercise, not automatic recovery of a live service. Persistent storage, traffic switching, and VM deployment remain future work.
 
+## Run as a Linux service
+
+The [Linux deployment guide](deploy/README.md) explains how to install a packaged release on a Debian/Ubuntu VM, run it with systemd under a dedicated account, inspect logs, and switch or roll back releases. The unit keeps the app on loopback and restarts it after process failures. Actual VM installation and service recovery verification remain pending.
+
+For a repeatable check of a running local app:
+
+```bash
+bash scripts/check.sh
+bash scripts/check.sh http://127.0.0.1:9000
+```
+
+The script checks `/health`, requires HTTP success and the expected JSON payload, and returns a nonzero exit code on failure. Each request times out after five seconds. It works from any directory when invoked by its full path. This is an on-demand check; it does not install monitoring or restart the service.
+
 ## Project structure
 
 ```text
@@ -216,10 +229,16 @@ app/
     index.html          Frontend, styles, and browser JavaScript
 tests/
   test_server.py        HTTP success, error, and regression tests
+  test_check.py         Operational health-check success and failure tests
 scripts/
   test.sh               Repeatable local test command
+  check.sh              Check a running service with curl and JSON validation
   release.py            Package and smoke-test a committed application
   rehearse.py           Rehearse local deployment and rollback
+deploy/
+  README.md             Linux installation, operation, and rollback guide
+  systemd/
+    service-status.service  Linux service unit
 Dockerfile             Package the application with Python
 compose.yaml           Container run settings and health check
 .dockerignore          Limit files sent to the image build

@@ -9,7 +9,7 @@ Build on the same Service Status application one small stage at a time. Phase 1 
 | 3 | Automated testing | HTTP tests cover normal requests, query strings, file-path rejection, error recovery, runtime status, HEAD, and port configuration; a Bash script runs the suite. |
 | 4 | GitHub Actions CI | Workflow added for pushes, pull requests, and manual runs on Python 3.10 and 3.14. Pending: inspect passing hosted jobs and demonstrate a failing check. |
 | 5 | CD/deployment pipeline | Added commit-versioned archives, SHA-256 checksums, and extracted-release HTTP smoke checks; added an automated previous/candidate/previous process-switch rehearsal on one temporary port. Pending: hosted release pipeline; connect a server in Phase 6. |
-| 6 | Linux server deployment | Deploy to a Linux VM, manage the service, and use a small Bash script for repeatable checks. |
+| 6 | Linux server deployment | Added a systemd unit, Bash health-check script, failure-path tests, and VM installation/rollback guide. Pending: install on a VM and verify startup, restart, logs, and rollback. |
 | 7 | Nginx reverse proxy | Route traffic through Nginx and explain ports, proxy settings, and request failures. |
 | 8 | Terraform infrastructure | Describe the intended infrastructure in code and review its plan before provisioning. |
 | 9 | Azure deployment | Provision and deploy to Azure with a cost estimate and documented teardown. |
