@@ -186,6 +186,24 @@ Open http://127.0.0.1:9000 and check `/health`. Stop it with Ctrl+C. Keep the pr
 
 You can package an earlier commit with `python3 scripts/release.py HEAD~1`. Packages from commits `a2c9616` and `d10e55f` were verified locally: both passed health and homepage checks, and their archive contents and SHA-256 checksums were checked. Smoke checks confirm each package can start and serve its files independently. A server deployment pipeline, hosted release artifacts, and automated rollback come later; this step creates no cloud resources.
 
+### Automated deployment and rollback rehearsal
+
+On Linux with Python 3.12 or newer, run:
+
+```bash
+python3 scripts/rehearse.py
+```
+
+This packages `HEAD~1` and `HEAD`, verifies their checksums, and extracts them into separate temporary directories. It starts the previous release, stops it, starts the candidate on the same localhost port, then stops it and starts the previous release again. Each step must pass health and homepage checks. The script prints the source commit for each step and removes its temporary files and processes afterward, including on failure.
+
+Choose two other committed revisions with:
+
+```bash
+python3 scripts/rehearse.py --previous d10e55f --candidate HEAD
+```
+
+The revisions must resolve to different commits. Even if their application files are identical, this checks packaging and switching processes; it does not prove a behavior change. The port is chosen automatically, so the rehearsal does not stop an existing app or use port 8000. A failed candidate stops the rehearsal with a nonzero exit code; this is a controlled exercise, not automatic recovery of a live service. Persistent storage, traffic switching, and VM deployment remain future work.
+
 ## Project structure
 
 ```text
@@ -201,6 +219,7 @@ tests/
 scripts/
   test.sh               Repeatable local test command
   release.py            Package and smoke-test a committed application
+  rehearse.py           Rehearse local deployment and rollback
 Dockerfile             Package the application with Python
 compose.yaml           Container run settings and health check
 .dockerignore          Limit files sent to the image build

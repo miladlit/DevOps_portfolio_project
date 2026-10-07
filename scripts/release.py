@@ -1,6 +1,7 @@
 """Package a committed application revision and smoke-test the extracted release."""
 
 import argparse
+from contextlib import contextmanager
 import hashlib
 import io
 import json
@@ -44,10 +45,11 @@ def package(ref, output):
     return target
 
 
-def smoke_test(directory):
+@contextmanager
+def running_server(directory, port=0):
     command = (
         "from app.server import StatusServer, RequestHandler; "
-        "server = StatusServer(('127.0.0.1', 0), RequestHandler); "
+        f"server = StatusServer(('127.0.0.1', {port}), RequestHandler); "
         "print(server.server_port, flush=True); server.serve_forever()"
     )
     process = subprocess.Popen(
@@ -58,12 +60,7 @@ def smoke_test(directory):
         if not select.select([process.stdout], [], [], 5)[0]:
             raise RuntimeError("Release server did not start within five seconds")
         port = int(process.stdout.readline())
-        with urlopen(f"http://127.0.0.1:{port}/health", timeout=5) as response:
-            if response.status != 200 or json.load(response) != {"status": "ok"}:
-                raise RuntimeError("Release health check failed")
-        with urlopen(f"http://127.0.0.1:{port}/", timeout=5) as response:
-            if b"<h1>Service Status</h1>" not in response.read():
-                raise RuntimeError("Release homepage check failed")
+        yield port
     finally:
         process.terminate()
         try:
@@ -72,6 +69,20 @@ def smoke_test(directory):
             process.kill()
             process.wait()
         process.stdout.close()
+
+
+def check_server(port):
+    with urlopen(f"http://127.0.0.1:{port}/health", timeout=5) as response:
+        if response.status != 200 or json.load(response) != {"status": "ok"}:
+            raise RuntimeError("Release health check failed")
+    with urlopen(f"http://127.0.0.1:{port}/", timeout=5) as response:
+        if b"<h1>Service Status</h1>" not in response.read():
+            raise RuntimeError("Release homepage check failed")
+
+
+def smoke_test(directory):
+    with running_server(directory) as port:
+        check_server(port)
 
 
 def main():
