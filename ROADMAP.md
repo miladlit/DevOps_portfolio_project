@@ -1,13 +1,13 @@
 # Project roadmap
 
-Build on the same Service Status application one small stage at a time. Phase 1 is complete. Phase 2 configuration is added; image build and runtime verification are pending Docker daemon access. Phase 3 adds HTTP regression tests and a Bash test runner. Each later phase should add one or two concepts, leave the application working, and update the README with commands that have been verified.
+Build on the same Service Status application one small stage at a time. Phase 1 is complete. Phase 2 configuration is added; image build and runtime verification are pending Docker daemon access. Phase 3 adds HTTP regression tests and a Bash test runner. Phase 4 adds a GitHub Actions workflow; hosted verification is pending. Each later phase should add one or two concepts, leave the application working, and update the README with commands that have been verified.
 
 | Phase | Focus | Working result / completion check |
 | --- | --- | --- |
 | 1 | Basic application and Git structure | Local frontend, Python API, health endpoint, basic HTTP tests, and setup instructions. |
 | 2 | Docker and Docker Compose | Configuration added. Pending: build and run the container, verify `/health` and healthy status, then stop it cleanly. |
-| 3 | Automated testing | Added seven HTTP tests covering normal requests, query strings, file-path rejection, and recovery after an unsupported method; documented a Bash test runner. |
-| 4 | GitHub Actions CI | Run tests automatically on pushes and pull requests; demonstrate a failing check. |
+| 3 | Automated testing | HTTP tests cover normal requests, query strings, file-path rejection, error recovery, runtime status, HEAD, and port configuration; a Bash script runs the suite. |
+| 4 | GitHub Actions CI | Workflow added for pushes, pull requests, and manual runs on Python 3.10 and 3.14. Pending: inspect passing hosted jobs and demonstrate a failing check. |
 | 5 | CD/deployment pipeline | Package a versioned release and rehearse deployment and rollback locally; connect a server in Phase 6. |
 | 6 | Linux server deployment | Deploy to a Linux VM, manage the service, and use a small Bash script for repeatable checks. |
 | 7 | Nginx reverse proxy | Route traffic through Nginx and explain ports, proxy settings, and request failures. |

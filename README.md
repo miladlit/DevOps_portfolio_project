@@ -6,7 +6,7 @@ The application is **Service Status**: a small web page that displays the servic
 
 ## Current stage
 
-Phase 3: expanded automated HTTP tests and a repeatable test command. Phase 2 container runtime verification is still pending local Docker access. There are no pipelines or cloud resources yet. Future work is tracked in [ROADMAP.md](ROADMAP.md).
+Phase 4: GitHub Actions CI configuration is added for the automated HTTP tests. Its first hosted run is pending a push to GitHub. Phase 2 container runtime verification is still pending local Docker access. There are no cloud resources yet. Future work is tracked in [ROADMAP.md](ROADMAP.md).
 
 ## Run locally
 
@@ -114,7 +114,7 @@ From the repository root:
 bash scripts/test.sh
 ```
 
-The script locates the repository using its own path and runs Python's built-in test runner. You can also call it by its full path from another directory. A failure produces a nonzero exit code, which a future CI pipeline can use to stop a build.
+The script locates the repository using its own path and runs Python's built-in test runner. You can also call it by its full path from another directory. A failure produces a nonzero exit code, which the CI workflow uses to mark a check as failed.
 
 The underlying command is still available:
 
@@ -147,9 +147,23 @@ Read `FAIL` as an assertion mismatch and `ERROR` as an unexpected exception. Sta
 
 Browser JavaScript and Docker networking are not covered by these tests. Check the page manually and complete the container verification separately.
 
+## GitHub Actions CI
+
+`.github/workflows/ci.yml` runs `bash scripts/test.sh` on pushes and pull requests. Two independent jobs check Python 3.10 (the documented minimum) and 3.14 (the Docker image version). Each uses a fresh Ubuntu runner, read-only repository permissions, and a five-minute timeout. No packages or secrets are needed.
+
+The workflow follows the official [Python CI guide](https://docs.github.com/en/actions/tutorials/build-and-test-code/python) and [setup-python instructions](https://github.com/actions/setup-python). CI means the same automated checks run for every proposed change; a failing test produces a failed job.
+
+After committing and pushing this change, open the repository's **Actions** tab, select **CI**, and inspect **Run HTTP tests** in both jobs. A successful local run does not prove the hosted workflow has run. After the workflow exists on the default branch, **Run workflow** also allows a manual run.
+
+To practice diagnosing a failed check, use a temporary branch: change the expected health value in `test_health` from `ok` to `broken`, confirm the local tests fail, and push the branch. Inspect the failed assertion in Actions, restore `ok`, and push again to see the jobs pass. Keep the deliberate failure out of the default branch.
+
+The workflow checks Python HTTP behavior. Browser behavior and Docker build/runtime verification remain separate checks. Local Docker access is still denied by the socket permissions; adding CI does not complete Phase 2. Hosted success and the failed-check exercise remain pending until performed on GitHub.
+
 ## Project structure
 
 ```text
+.github/workflows/
+  ci.yml                GitHub Actions HTTP test workflow
 app/
   __init__.py           Python package marker
   server.py             HTTP routes and local server entry point
@@ -204,4 +218,8 @@ Explain the difference between an image and a container, why the server needs a 
 
 ## Phase 3 learning checkpoint
 
-Explain why an error response can be a passing test, how `subTest` identifies a failing input, and why test commands must return a failure exit code. Run the full suite before each commit. Container verification remains a separate unfinished check before starting CI.
+Explain why an error response can be a passing test, how `subTest` identifies a failing input, and why test commands must return a failure exit code. Run the full suite before each commit. Container verification remains a separate unfinished check alongside CI setup.
+
+## Phase 4 learning checkpoint
+
+Explain the difference between a workflow, a job, and a step, why CI calls the same script as local development, and why testing two Python versions is useful. Inspect a passing hosted run and practice the failing-check exercise above before treating this phase as verified.
