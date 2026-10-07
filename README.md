@@ -6,7 +6,7 @@ The application is **Service Status**: a small web page that displays the servic
 
 ## Current stage
 
-Phase 4: GitHub Actions CI configuration is added for the automated HTTP tests. Its first hosted run is pending a push to GitHub. Phase 2 container runtime verification is still pending local Docker access. There are no cloud resources yet. Future work is tracked in [ROADMAP.md](ROADMAP.md).
+Phase 5: local release packaging and extracted-release smoke checks are added. Phase 4 GitHub Actions CI configuration is added for the automated HTTP tests. Its first hosted run is pending a push to GitHub. Phase 2 container runtime verification is still pending local Docker access. There are no cloud resources yet. Future work is tracked in [ROADMAP.md](ROADMAP.md).
 
 ## Run locally
 
@@ -159,6 +159,33 @@ To practice diagnosing a failed check, use a temporary branch: change the expect
 
 The workflow checks Python HTTP behavior. Browser behavior and Docker build/runtime verification remain separate checks. Local Docker access is still denied by the socket permissions; adding CI does not complete Phase 2. Hosted success and the failed-check exercise remain pending until performed on GitHub.
 
+## Package and rehearse a release locally
+
+Phase 5 starts with a release package that can run independently of the working folder. Use Python 3.12 or newer for this script (the application still supports Python 3.10).
+
+```bash
+python3 scripts/release.py HEAD
+```
+
+The script packages only committed `app/` files, extracts them into a temporary directory, and checks the real HTTP health endpoint and homepage on a temporary port. It stops the temporary server afterward. Uncommitted edits are excluded. A failed smoke check stops packaging.
+
+The resulting `dist/service-status-<full-commit>.tar.gz` contains the application and `release.json` recording the source commit. A neighboring `.sha256` file allows checking the archive before extraction. Existing archives are never overwritten. `dist/` is ignored by Git.
+
+To run a packaged release, replace `<full-commit>` with the commit printed in the archive filename:
+
+```bash
+cd dist
+sha256sum -c service-status-<full-commit>.tar.gz.sha256
+mkdir release-<full-commit>
+tar -xzf service-status-<full-commit>.tar.gz -C release-<full-commit>
+cd release-<full-commit>
+APP_PORT=9000 python3 -m app.server
+```
+
+Open http://127.0.0.1:9000 and check `/health`. Stop it with Ctrl+C. Keep the previous extracted release directory. To rehearse rollback, stop the new process, switch to the previous directory, and start it with the same command and port; verify health again. This is a manual local deployment rehearsal, with downtime while switching processes.
+
+You can package an earlier commit with `python3 scripts/release.py HEAD~1`. Packages from commits `a2c9616` and `d10e55f` were verified locally: both passed health and homepage checks, and their archive contents and SHA-256 checksums were checked. Smoke checks confirm each package can start and serve its files independently. A server deployment pipeline, hosted release artifacts, and automated rollback come later; this step creates no cloud resources.
+
 ## Project structure
 
 ```text
@@ -173,6 +200,7 @@ tests/
   test_server.py        HTTP success, error, and regression tests
 scripts/
   test.sh               Repeatable local test command
+  release.py            Package and smoke-test a committed application
 Dockerfile             Package the application with Python
 compose.yaml           Container run settings and health check
 .dockerignore          Limit files sent to the image build
