@@ -28,3 +28,25 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Run HTTP tests
         run: bash scripts/test.sh
+
+  proxy:
+    name: Nginx integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+      - name: Install Nginx
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends nginx
+      - name: Require Nginx and run proxy tests
+        run: |
+          command -v nginx
+          python3 -m unittest discover -s tests -p test_proxy.py -v

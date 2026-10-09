@@ -6,7 +6,7 @@ The application is **Service Status**: a small web page that displays the servic
 
 ## Current stage
 
-Phase 6 preparation: a Linux systemd service unit and operational health check are added; installation on a VM is pending. Phase 5 local release packaging and extracted-release smoke checks are added. Phase 4 GitHub Actions CI configuration is added for the automated HTTP tests. Its first hosted run is pending a push to GitHub. Phase 2 container runtime verification is still pending local Docker access. There are no cloud resources yet. Future work is tracked in [ROADMAP.md](ROADMAP.md).
+Phase 7 preparation: an Nginx reverse proxy configuration and verification guide are added. Phase 6 Linux service configuration is ready; installation on a VM is pending. Phase 5 local release packaging and extracted-release smoke checks are added. Phase 4 GitHub Actions CI configuration is added for the automated HTTP tests. Its first hosted run is pending a push to GitHub. Phase 2 container runtime verification is still pending local Docker access. There are no cloud resources yet. Future work is tracked in [ROADMAP.md](ROADMAP.md).
 
 ## Run locally
 
@@ -217,6 +217,12 @@ bash scripts/check.sh http://127.0.0.1:9000
 
 The script checks `/health`, requires HTTP success and the expected JSON payload, and returns a nonzero exit code on failure. Each request times out after five seconds. It works from any directory when invoked by its full path. This is an on-demand check; it does not install monitoring or restart the service.
 
+## Nginx reverse proxy
+
+The [proxy setup guide](deploy/nginx/README.md) routes loopback port 8080 to the app on port 8000, with request forwarding, logs, and a stopped-upstream exercise. Follow it after verifying the Linux service. Nginx integration tests now validate the proxy when an executable is available, and a dedicated CI job runs them. Installed VM verification remains pending.
+
+See [roadmap progress](ROADMAP.md#progress-and-remaining-work) for what is complete and what remains: 2 phases complete locally, 5 partly built, and 11 later phases not started.
+
 ## Project structure
 
 ```text
@@ -230,6 +236,7 @@ app/
 tests/
   test_server.py        HTTP success, error, and regression tests
   test_check.py         Operational health-check success and failure tests
+  test_proxy.py         Optional live Nginx forwarding and failure tests
 scripts/
   test.sh               Repeatable local test command
   check.sh              Check a running service with curl and JSON validation
@@ -239,6 +246,9 @@ deploy/
   README.md             Linux installation, operation, and rollback guide
   systemd/
     service-status.service  Linux service unit
+  nginx/
+    service-status.conf   Loopback reverse proxy site
+    README.md             Proxy setup and failure verification
 Dockerfile             Package the application with Python
 compose.yaml           Container run settings and health check
 .dockerignore          Limit files sent to the image build
