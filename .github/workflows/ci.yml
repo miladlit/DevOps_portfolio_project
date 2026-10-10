@@ -51,9 +51,21 @@ jobs:
           command -v nginx
           python3 -m unittest discover -s tests -p test_proxy.py -v
 
+  container:
+    name: Container smoke check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Build and verify container
+        run: bash scripts/test-container.sh
+
   release:
     name: Build verified release
-    needs: [tests, proxy]
+    needs: [tests, proxy, container]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

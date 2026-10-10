@@ -73,6 +73,18 @@ docker compose down
 
 The built image stays cached. After editing application files, run `docker compose up --build -d` again: the code is copied into the image, not mounted from your working folder.
 
+### Automated container smoke check
+
+With Docker daemon access, Python 3, Bash, and curl installed, run:
+
+```bash
+bash scripts/test-container.sh
+```
+
+This builds a uniquely tagged image and runs an isolated container on a temporary loopback port, leaving port 8000 free. It waits for Docker health status, checks the health JSON and homepage through the published port, and verifies UID 10001. It prints container logs on failure and removes its temporary container and image on exit. Docker build cache remains available. This check exercises the Dockerfile; use the Compose commands above to verify Compose separately.
+
+CI runs the same check in a dedicated job. Release packaging requires the Python tests, Nginx tests, and container check to pass. Local Docker execution and the first hosted run remain pending.
+
 ### What the new files do
 
 - `Dockerfile` describes an image containing Python and our application. It runs the app as a non-root user and sends Python output straight to the container logs.
@@ -157,11 +169,11 @@ After committing and pushing this change, open the repository's **Actions** tab,
 
 To practice diagnosing a failed check, use a temporary branch: change the expected health value in `test_health` from `ok` to `broken`, confirm the local tests fail, and push the branch. Inspect the failed assertion in Actions, restore `ok`, and push again to see the jobs pass. Keep the deliberate failure out of the default branch.
 
-The workflow checks Python HTTP behavior. Browser behavior and Docker build/runtime verification remain separate checks. Local Docker access is still denied by the socket permissions; adding CI does not complete Phase 2. Hosted success and the failed-check exercise remain pending until performed on GitHub.
+The workflow checks Python HTTP behavior, Nginx forwarding, and Docker image build/runtime behavior. Browser interaction and Compose verification remain separate checks. Local Docker access is still denied by the socket permissions; adding CI does not complete Phase 2. Hosted success and the failed-check exercise remain pending until performed on GitHub.
 
 ### Download a verified CI release
 
-The **Build verified release** job depends on both Python test jobs and the Nginx integration job. If any required test fails, packaging and upload do not run. The release job packages the checked-out commit, smoke-tests the extracted application, verifies its SHA-256 checksum, then uploads the archive and checksum together as `service-status-<commit>`. No deployment credentials are required.
+The **Build verified release** job depends on both Python test jobs, the Nginx integration job, and the container smoke check. If any required test fails, packaging and upload do not run. The release job packages the checked-out commit, smoke-tests the extracted application, verifies its SHA-256 checksum, then uploads the archive and checksum together as `service-status-<commit>`. No deployment credentials are required.
 
 After a successful hosted run, open **Actions → CI → the run → Artifacts**, download the release artifact, and unzip it. From the extracted artifact directory, run:
 
@@ -198,7 +210,7 @@ APP_PORT=9000 python3 -m app.server
 
 Open http://127.0.0.1:9000 and check `/health`. Stop it with Ctrl+C. Keep the previous extracted release directory. To rehearse rollback, stop the new process, switch to the previous directory, and start it with the same command and port; verify health again. This is a manual local deployment rehearsal, with downtime while switching processes.
 
-You can package an earlier commit with `python3 scripts/release.py HEAD~1`. Packages from commits `a2c9616` and `d10e55f` were verified locally: both passed health and homepage checks, and their archive contents and SHA-256 checksums were checked. Smoke checks confirm each package can start and serve its files independently. The CI workflow now prepares downloadable release artifacts after both test jobs pass. Actual server deployment and automatic rollback remain future work; this step creates no cloud resources.
+You can package an earlier commit with `python3 scripts/release.py HEAD~1`. Packages from commits `a2c9616` and `d10e55f` were verified locally: both passed health and homepage checks, and their archive contents and SHA-256 checksums were checked. Smoke checks confirm each package can start and serve its files independently. The CI workflow now prepares downloadable release artifacts after all required test jobs pass. Actual server deployment and automatic rollback remain future work; this step creates no cloud resources.
 
 ### Automated deployment and rollback rehearsal
 
