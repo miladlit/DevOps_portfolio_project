@@ -50,3 +50,32 @@ jobs:
         run: |
           command -v nginx
           python3 -m unittest discover -s tests -p test_proxy.py -v
+
+  release:
+    name: Build verified release
+    needs: [tests, proxy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out tested revision
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+      - name: Package and smoke-test application
+        run: python3 scripts/release.py HEAD
+      - name: Verify release checksum
+        working-directory: dist
+        run: sha256sum -c *.sha256
+      - name: Upload verified release
+        uses: actions/upload-artifact@v7
+        with:
+          name: service-status-${{ github.sha }}
+          path: |
+            dist/*.tar.gz
+            dist/*.sha256
+          if-no-files-found: error
+          retention-days: 14
