@@ -1,59 +1,156 @@
 # DevOps Portfolio Project
 
-A project I am building in small stages to learn how to run an application reliably, from local development to cloud deployment.
+A hands-on DevOps project that takes a small web service through the same stages used in a real delivery workflow: development, testing, containerization, CI/CD, Linux deployment, reverse proxying, infrastructure, monitoring, logging, and orchestration.
 
-The application is **Service Status**: a small web page that displays the service name, version, and health. Keeping the application simple leaves room to focus on testing, delivery, infrastructure, and troubleshooting.
+The application itself is intentionally simple. **Service Status** exposes health and runtime information through a small Python API and browser dashboard, so the main focus stays on DevOps engineering rather than application complexity.
 
-## Current stage
+## What this project demonstrates
 
-Phase 7 preparation: an Nginx reverse proxy configuration and verification guide are added. Phase 6 Linux service configuration is ready; installation on a VM is pending. Phase 5 release packaging, smoke checks, and a CI artifact delivery job are added. Phase 4 GitHub Actions CI configuration is added for the automated HTTP tests. Its first hosted run is pending a push to GitHub. Phase 2 container runtime verification is still pending local Docker access. There are no cloud resources yet. Future work is tracked in [ROADMAP.md](ROADMAP.md).
+**Working or implemented now**
 
-## Run locally
+- Python service with health and status endpoints
+- Automated HTTP and regression tests
+- Bash test and health-check scripts
+- Dockerfile and Docker Compose configuration
+- GitHub Actions CI across Python versions
+- Nginx integration tests in CI
+- Versioned release packaging with SHA-256 checksums
+- CI release artifacts after successful tests
+- Deployment and rollback rehearsal
+- Linux `systemd` service configuration
+- Nginx reverse proxy configuration
+- Documentation and troubleshooting notes
 
-You need Python 3.10 or newer and Git. The application uses only Python's standard library; there are no Python packages to install. Operational health-check tests also need Bash and curl and are skipped if those tools are missing.
+**Planned next**
 
-From the repository root (the directory containing this README):
+Terraform → Azure → Ansible → Prometheus → Grafana → Elastic Stack → Jenkins → Kubernetes → Helm → security hardening.
+
+See the full [project roadmap](ROADMAP.md).
+
+## Current status
+
+The project is currently around **Phase 7** of the roadmap.
+
+| Area | Status |
+| --- | --- |
+| Application | Working locally |
+| Automated tests | Working locally |
+| Docker configuration | Added; runtime verification still pending |
+| GitHub Actions CI | Added; hosted verification still being completed |
+| Release packaging | Implemented and smoke-tested locally |
+| Linux deployment | Configuration and guide ready; VM installation pending |
+| Nginx reverse proxy | Configuration and local integration tests added |
+| Cloud infrastructure | Not started yet |
+| Monitoring / logging | Planned for later phases |
+
+I deliberately keep unfinished work marked as unfinished. A configuration file is not treated as a completed deployment until it has been run and verified.
+
+## Architecture today
+
+```mermaid
+flowchart LR
+    U[Browser / curl] --> N[Nginx reverse proxy]
+    N --> A[Python Service Status app]
+    A --> H[/health]
+    A --> I[/api/info]
+    A --> S[/api/status]
+
+    G[GitHub push / pull request] --> CI[GitHub Actions CI]
+    CI --> T[Automated tests]
+    CI --> P[Release packaging]
+    P --> R[Verified release artifact]
+```
+
+The target architecture will expand gradually as Terraform, Azure, Ansible, Prometheus, Grafana, centralized logging, Kubernetes, and Helm are introduced.
+
+## Why I built it this way
+
+The goal is to understand each part instead of adding many tools at once. Every phase should leave the project working, add one or two useful DevOps concepts, and include a clear way to verify the result.
+
+That means the project grows in small steps:
+
+1. build something simple
+2. test it
+3. package it
+4. automate the checks
+5. create repeatable releases
+6. deploy and operate it
+7. add infrastructure and observability
+8. move toward orchestration and stronger security
+
+## Quick start
+
+Requirements:
+
+- Python 3.10+
+- Git
+- Bash and `curl` for operational checks
+
+Run the service from the repository root:
 
 ```bash
-python3 --version
 python3 -m app.server
 ```
 
-Open **http://127.0.0.1:8000** in a browser. Use **Check again** to refresh the status, or enable **Refresh every 10 seconds**. The page shows server uptime and the last successful check time. Requests time out after five seconds, allowing you to retry if the service stops responding. Stop the server with `Ctrl+C`.
+Open:
 
-In a second terminal, you can check the API directly:
+```text
+http://127.0.0.1:8000
+```
+
+Check the API:
 
 ```bash
 curl -i http://127.0.0.1:8000/health
 curl -i http://127.0.0.1:8000/api/info
+curl -i http://127.0.0.1:8000/api/status
 ```
 
-The health endpoint should return HTTP `200` and `{"status": "ok"}`.
+A healthy service returns:
 
-### Review recent checks
+```json
+{"status": "ok"}
+```
 
-The dashboard measures each complete check (all three API requests and JSON parsing) and displays its duration in milliseconds. The recent-check table keeps the last 20 results in the current tab, including failures and five-second timeouts. A summary counts successful checks in that window; it is not a long-term availability metric.
-
-Use **Clear history** to reset the table and summary. Reloading the page also resets history. Check duration includes browser and network time, so it is not a server-only latency measurement. Unexpected API data is recorded as a failed check.
-
-### Use a different local port
-
-Set `APP_PORT` when port 8000 is busy:
+Use a different port when needed:
 
 ```bash
 APP_PORT=9000 python3 -m app.server
-curl -I http://127.0.0.1:9000/health
 ```
 
-Open **http://127.0.0.1:9000** for this run. The default port is 8000; invalid values outside the integer range 1–65535 stop startup with a clear message. `APP_HOST` still controls the bind address. The supplied Docker Compose configuration uses container port 8000; changing the container port also requires updating its port mapping and health check.
+## Automated tests
 
-`curl -I` sends a `HEAD` request. All GET routes also support HEAD, returning the same status and headers without a response body. Unknown HEAD routes return `404` without a body.
+Run the full local test suite with:
 
-## Run with Docker Compose
+```bash
+bash scripts/test.sh
+```
 
-You need Docker Engine and Compose v2. The commands below use `docker compose`. If your installation provides the standalone v2 executable (as on this development machine), use `docker-compose` instead.
+Or directly with Python:
 
-Stop any local Python copy first so port 8000 is free. From the repository root:
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+The tests cover normal HTTP behavior as well as failure and regression cases, including:
+
+- health, info, status, and homepage responses
+- `HEAD` requests
+- configurable ports
+- unknown routes
+- query strings
+- source-file and parent-path rejection
+- unsupported methods followed by successful recovery
+- operational health-check behavior
+- Nginx forwarding and upstream-failure behavior when Nginx is available
+
+The HTTP tests start their own temporary server, make real requests, and stop it afterwards.
+
+## Docker and Docker Compose
+
+The repository includes a `Dockerfile`, `.dockerignore`, and `compose.yaml`.
+
+Expected workflow:
 
 ```bash
 docker compose config --quiet
@@ -61,255 +158,202 @@ docker compose up --build -d
 docker compose ps
 curl -i http://127.0.0.1:8000/health
 docker compose logs --tail=20 app
-```
-
-Open **http://127.0.0.1:8000**. The health response should be HTTP `200` with `{"status": "ok"}`. After the first health check, `docker compose ps` should show `healthy`.
-
-Stop and remove this project's containers and network when finished:
-
-```bash
 docker compose down
 ```
 
-The built image stays cached. After editing application files, run `docker compose up --build -d` again: the code is copied into the image, not mounted from your working folder.
+The image runs the application as a non-root user and Compose includes a health check.
 
-### What the new files do
+**Verification note:** the configuration exists, but full container runtime verification is still pending on the current development environment because Docker socket access is restricted. I keep that distinction visible rather than marking the phase complete prematurely.
 
-- `Dockerfile` describes an image containing Python and our application. It runs the app as a non-root user and sends Python output straight to the container logs.
-- `.dockerignore` limits the build context to application files and build instructions, excluding Python caches and `.env` files.
-- `compose.yaml` records how to build and run one app container, publish its port, and check `/health` periodically. An unhealthy status is a diagnostic signal; it does not automatically restart the app.
+## CI/CD with GitHub Actions
 
-An **image** is the packaged application; a **container** is a running instance. Compose saves the run settings in Git so we do not have to remember a long command.
+`.github/workflows/ci.yml` runs on pushes, pull requests, and manual dispatches.
 
-Inside the container, `APP_HOST=0.0.0.0` makes Python listen on all container interfaces. Compose publishes container port 8000 as `127.0.0.1:8000` on the host, keeping browser access local. Direct Python runs default to `127.0.0.1`. `EXPOSE 8000` documents the port; Compose's `ports` setting actually publishes it. See the [Dockerfile reference](https://docs.docker.com/reference/dockerfile/) and [Compose service reference](https://docs.docker.com/reference/compose-file/services/).
+The pipeline currently contains:
 
-### Verification status
+1. HTTP tests on Python 3.10
+2. HTTP tests on Python 3.14
+3. Nginx integration tests
+4. release packaging after required tests pass
+5. SHA-256 checksum verification
+6. upload of the verified release artifact
 
-The Python tests and Compose configuration can be checked without Docker daemon access. On this development machine, Docker is installed and standalone Compose v2 is available, but the current user cannot access the Docker socket and sudo requires interactive authentication. Image build, container health, browser access through Docker, and cleanup still need to be verified once Docker access is available. This remains a local learning server, not a production deployment.
+The workflow uses read-only repository permissions for normal CI work and does not require deployment secrets at this stage.
 
-## How it works
+The release artifact is named from the tested commit so a package can be traced back to its source revision.
 
-1. The Python server receives a browser request for `/` and returns `app/static/index.html`.
-2. JavaScript in that page requests `/api/info` and `/health` from the same server.
-3. The API returns JSON, and the page displays the values.
+## Release and rollback practice
 
-| Route | Purpose |
-| --- | --- |
-| `GET /` | Serve the frontend |
-| `GET /api/info` | Return the application name and version |
-| `GET /api/status` | Return UTC startup time and uptime in seconds |
-| `GET /health` | Report that the HTTP service can respond |
-
-Uptime is measured with a monotonic clock and resets when the server restarts. `/api/status` returns `started_at` (an ISO 8601 UTC timestamp) and `uptime_seconds` (a number). Responses include `Cache-Control: no-store` so checks use fresh data.
-
-Unknown routes return HTTP `404` with a JSON error. Requests are logged to the terminal.
-
-The health check only checks this process. It does not check a database or external service, because there are none yet. Python's built-in HTTP server is suitable for this local learning stage; we will revisit the server before deployment. Direct Python runs listen only on the local machine; the container uses the networking settings explained above.
-
-## Run the tests
-
-From the repository root:
-
-```bash
-bash scripts/test.sh
-```
-
-The script locates the repository using its own path and runs Python's built-in test runner. You can also call it by its full path from another directory. A failure produces a nonzero exit code, which the CI workflow uses to mark a check as failed.
-
-The underlying command is still available:
-
-```bash
-python3 -m unittest discover -s tests -v
-```
-
-The HTTP tests start their own server on a temporary local port, make real HTTP requests, and stop it afterward. You do not need to start the application first, and port 8000 is not used by the tests.
-
-| Behavior | Why test it? |
-| --- | --- |
-| Health, application info, and homepage | Confirm normal requests return the expected content. |
-| HEAD requests | Confirm successful and missing routes send headers without a body. |
-| Port configuration | Confirm default/custom ports and reject invalid values before startup. |
-| Runtime status and cache headers | Confirm elapsed time, timezone-aware startup time, and fresh status responses. |
-| Unknown route | Confirm a missing page returns `404` with a JSON error. |
-| API requests with query strings | A query such as `?source=test` should not break route matching. |
-| Requests for source files and parent paths | The server should only expose its explicit routes, not repository files. |
-| Unsupported POST followed by GET | The server should reject the method and still answer a health request. |
-
-The current standard-library handler returns `501` with an HTML error for unsupported methods; our unknown GET routes return JSON `404` errors. The tests document both behaviors. The file-path cases are regression checks, not a full security audit.
-
-To run only the error-recovery test:
-
-```bash
-python3 -m unittest discover -s tests -v -k unsupported_method
-```
-
-Read `FAIL` as an assertion mismatch and `ERROR` as an unexpected exception. Start with the named test and traceback. For a small learning exercise, temporarily change the expected health value in `test_health` from `ok` to `broken`, run the tests, then undo that edit and confirm they pass. Do not commit the deliberate failure.
-
-Browser JavaScript and Docker networking are not covered by these tests. Check the page manually and complete the container verification separately.
-
-## GitHub Actions CI
-
-`.github/workflows/ci.yml` runs `bash scripts/test.sh` on pushes and pull requests. Two independent jobs check Python 3.10 (the documented minimum) and 3.14 (the Docker image version). Each uses a fresh Ubuntu runner, read-only repository permissions, and a five-minute timeout. No packages or secrets are needed.
-
-The workflow follows the official [Python CI guide](https://docs.github.com/en/actions/tutorials/build-and-test-code/python) and [setup-python instructions](https://github.com/actions/setup-python). CI means the same automated checks run for every proposed change; a failing test produces a failed job.
-
-After committing and pushing this change, open the repository's **Actions** tab, select **CI**, and inspect **Run HTTP tests** in both jobs. A successful local run does not prove the hosted workflow has run. After the workflow exists on the default branch, **Run workflow** also allows a manual run.
-
-To practice diagnosing a failed check, use a temporary branch: change the expected health value in `test_health` from `ok` to `broken`, confirm the local tests fail, and push the branch. Inspect the failed assertion in Actions, restore `ok`, and push again to see the jobs pass. Keep the deliberate failure out of the default branch.
-
-The workflow checks Python HTTP behavior. Browser behavior and Docker build/runtime verification remain separate checks. Local Docker access is still denied by the socket permissions; adding CI does not complete Phase 2. Hosted success and the failed-check exercise remain pending until performed on GitHub.
-
-### Download a verified CI release
-
-The **Build verified release** job depends on both Python test jobs and the Nginx integration job. If any required test fails, packaging and upload do not run. The release job packages the checked-out commit, smoke-tests the extracted application, verifies its SHA-256 checksum, then uploads the archive and checksum together as `service-status-<commit>`. No deployment credentials are required.
-
-After a successful hosted run, open **Actions → CI → the run → Artifacts**, download the release artifact, and unzip it. From the extracted artifact directory, run:
-
-```bash
-sha256sum -c *.sha256
-```
-
-Then extract the `.tar.gz` and follow the local run or Linux deployment instructions below. The artifact expires after 14 days, subject to repository retention settings. It is a workflow artifact rather than a permanent tagged GitHub Release. Pull-request runs package GitHub's tested merge revision; check the archive's `release.json` for its source commit before deploying. Upload and download have not yet been verified on GitHub.
-
-The upload configuration follows the official [upload-artifact instructions](https://github.com/actions/upload-artifact).
-
-## Package and rehearse a release locally
-
-Phase 5 starts with a release package that can run independently of the working folder. Use Python 3.12 or newer for this script (the application still supports Python 3.10).
+Create and smoke-test a release package:
 
 ```bash
 python3 scripts/release.py HEAD
 ```
 
-The script packages only committed `app/` files, extracts them into a temporary directory, and checks the real HTTP health endpoint and homepage on a temporary port. It stops the temporary server afterward. Uncommitted edits are excluded. A failed smoke check stops packaging.
+The script packages committed application files, extracts the result into a temporary directory, starts the application, checks the real HTTP endpoints, and creates a SHA-256 checksum.
 
-The resulting `dist/service-status-<full-commit>.tar.gz` contains the application and `release.json` recording the source commit. A neighboring `.sha256` file allows checking the archive before extraction. Existing archives are never overwritten. `dist/` is ignored by Git.
-
-To run a packaged release, replace `<full-commit>` with the commit printed in the archive filename:
-
-```bash
-cd dist
-sha256sum -c service-status-<full-commit>.tar.gz.sha256
-mkdir release-<full-commit>
-tar -xzf service-status-<full-commit>.tar.gz -C release-<full-commit>
-cd release-<full-commit>
-APP_PORT=9000 python3 -m app.server
-```
-
-Open http://127.0.0.1:9000 and check `/health`. Stop it with Ctrl+C. Keep the previous extracted release directory. To rehearse rollback, stop the new process, switch to the previous directory, and start it with the same command and port; verify health again. This is a manual local deployment rehearsal, with downtime while switching processes.
-
-You can package an earlier commit with `python3 scripts/release.py HEAD~1`. Packages from commits `a2c9616` and `d10e55f` were verified locally: both passed health and homepage checks, and their archive contents and SHA-256 checksums were checked. Smoke checks confirm each package can start and serve its files independently. The CI workflow now prepares downloadable release artifacts after both test jobs pass. Actual server deployment and automatic rollback remain future work; this step creates no cloud resources.
-
-### Automated deployment and rollback rehearsal
-
-On Linux with Python 3.12 or newer, run:
+Rehearse switching from a previous release to a candidate and back again:
 
 ```bash
 python3 scripts/rehearse.py
 ```
 
-This packages `HEAD~1` and `HEAD`, verifies their checksums, and extracts them into separate temporary directories. It starts the previous release, stops it, starts the candidate on the same localhost port, then stops it and starts the previous release again. Each step must pass health and homepage checks. The script prints the source commit for each step and removes its temporary files and processes afterward, including on failure.
+This is deliberately a local rehearsal rather than pretending to be a production deployment. Real server deployment is the next step.
 
-Choose two other committed revisions with:
+## Linux service deployment
 
-```bash
-python3 scripts/rehearse.py --previous d10e55f --candidate HEAD
-```
+The [Linux deployment guide](deploy/README.md) documents installation on Debian/Ubuntu with:
 
-The revisions must resolve to different commits. Even if their application files are identical, this checks packaging and switching processes; it does not prove a behavior change. The port is chosen automatically, so the rehearsal does not stop an existing app or use port 8000. A failed candidate stops the rehearsal with a nonzero exit code; this is a controlled exercise, not automatic recovery of a live service. Persistent storage, traffic switching, and VM deployment remain future work.
+- a dedicated service account
+- packaged releases
+- `systemd`
+- service restart behavior
+- log inspection
+- health checks
+- release switching and rollback
 
-## Run as a Linux service
+The service configuration keeps the Python application on loopback rather than exposing it directly.
 
-The [Linux deployment guide](deploy/README.md) explains how to install a packaged release on a Debian/Ubuntu VM, run it with systemd under a dedicated account, inspect logs, and switch or roll back releases. The unit keeps the app on loopback and restarts it after process failures. Actual VM installation and service recovery verification remain pending.
-
-For a repeatable check of a running local app:
+Run a repeatable health check against a running service with:
 
 ```bash
 bash scripts/check.sh
+```
+
+Or specify another local address:
+
+```bash
 bash scripts/check.sh http://127.0.0.1:9000
 ```
 
-The script checks `/health`, requires HTTP success and the expected JSON payload, and returns a nonzero exit code on failure. Each request times out after five seconds. It works from any directory when invoked by its full path. This is an on-demand check; it does not install monitoring or restart the service.
-
 ## Nginx reverse proxy
 
-The [proxy setup guide](deploy/nginx/README.md) routes loopback port 8080 to the app on port 8000, with request forwarding, logs, and a stopped-upstream exercise. Follow it after verifying the Linux service. Nginx integration tests now validate the proxy when an executable is available, and a dedicated CI job runs them. Installed VM verification remains pending.
+The [Nginx setup guide](deploy/nginx/README.md) places Nginx in front of the application.
 
-See [roadmap progress](ROADMAP.md#progress-and-remaining-work) for what is complete and what remains: 2 phases complete locally, 5 partly built, and 11 later phases not started.
+```text
+Client → Nginx → Python application
+```
+
+The repository includes:
+
+- proxy configuration
+- request forwarding
+- access/error logging
+- upstream failure testing
+- integration tests
+- a dedicated CI job
+
+Local Nginx integration testing has passed. Verification on the eventual VM is still pending.
 
 ## Project structure
 
 ```text
 .github/workflows/
-  ci.yml                GitHub Actions HTTP test workflow
+  ci.yml                     GitHub Actions CI and release workflow
+
 app/
-  __init__.py           Python package marker
-  server.py             HTTP routes and local server entry point
+  __init__.py
+  server.py                  HTTP service
   static/
-    index.html          Frontend, styles, and browser JavaScript
+    index.html               Status dashboard
+
 tests/
-  test_server.py        HTTP success, error, and regression tests
-  test_check.py         Operational health-check success and failure tests
-  test_proxy.py         Optional live Nginx forwarding and failure tests
+  test_server.py             HTTP and regression tests
+  test_check.py              Operational health-check tests
+  test_proxy.py              Nginx integration tests
+
 scripts/
-  test.sh               Repeatable local test command
-  check.sh              Check a running service with curl and JSON validation
-  release.py            Package and smoke-test a committed application
-  rehearse.py           Rehearse local deployment and rollback
+  test.sh                    Repeatable test command
+  check.sh                   Health check for a running service
+  release.py                 Build and smoke-test a release
+  rehearse.py                Deployment and rollback rehearsal
+
 deploy/
-  README.md             Linux installation, operation, and rollback guide
+  README.md                  Linux deployment guide
   systemd/
-    service-status.service  Linux service unit
+    service-status.service   systemd unit
   nginx/
-    service-status.conf   Loopback reverse proxy site
-    README.md             Proxy setup and failure verification
-Dockerfile             Package the application with Python
-compose.yaml           Container run settings and health check
-.dockerignore          Limit files sent to the image build
-.gitignore             Keep generated files and local secrets out of Git
-README.md              Setup and project explanation
-ROADMAP.md             Future phases
+    service-status.conf      Reverse proxy configuration
+    README.md                Nginx setup and verification
+
+Dockerfile                   Container image definition
+compose.yaml                 Docker Compose configuration
+.dockerignore                Docker build exclusions
+.gitignore                   Local/generated file exclusions
+README.md                    Portfolio overview and usage
+ROADMAP.md                   Project phases and progress
 ```
 
-## Git workflow
+## Roadmap
 
-Keep each change small, run the tests, and inspect the diff before committing. For the testing change:
+| Phase | Focus |
+| ---: | --- |
+| 1 | Basic application and Git structure |
+| 2 | Docker and Docker Compose |
+| 3 | Automated testing |
+| 4 | GitHub Actions CI |
+| 5 | Release / deployment pipeline |
+| 6 | Linux server deployment |
+| 7 | Nginx reverse proxy |
+| 8 | Terraform infrastructure |
+| 9 | Azure deployment |
+| 10 | Ansible configuration |
+| 11 | Prometheus monitoring |
+| 12 | Grafana dashboards |
+| 13 | Elastic Stack centralized logging |
+| 14 | Jenkins pipeline |
+| 15 | Kubernetes |
+| 16 | Helm |
+| 17 | Security, secrets, and scanning |
+| 18 | Final documentation and portfolio cleanup |
 
-```bash
-git status
-git add tests/test_server.py scripts/test.sh README.md ROADMAP.md
-git diff --cached
-git commit -m "test: expand HTTP regression coverage and add test runner"
-```
+Detailed completion criteria and current progress are kept in [ROADMAP.md](ROADMAP.md).
 
-For later work, use a focused branch, for example `feat/docker-compose`. Write commit messages describing the actual change, such as `docs: explain local troubleshooting`. Never commit credentials or `.env` files; ignoring a file does not remove secrets already tracked by Git.
+## What I am learning
+
+This project is not only about collecting tools. I want to be able to explain why each part exists and troubleshoot it when something fails.
+
+Examples of the concepts covered so far:
+
+- health checks and failure signals
+- repeatable automated testing
+- container images vs. running containers
+- CI jobs, steps, and dependencies
+- artifact traceability
+- release checksums
+- smoke testing
+- deployment and rollback concepts
+- Linux service management
+- reverse proxies and upstream failures
+
+Later stages will add infrastructure as code, cloud deployment, configuration management, metrics, dashboards, centralized logs, orchestration, and secret management.
+
+## Security principles
+
+Security is considered throughout the project rather than saved only for the final phase:
+
+- no credentials or `.env` files should be committed
+- containers should avoid unnecessary root privileges
+- services should avoid unnecessary public exposure
+- CI permissions should stay minimal
+- releases should be traceable to source commits
+- checksums are used to detect changed release archives
+
+Phase 17 will expand this with secret storage and automated security scanning.
 
 ## Troubleshooting
 
 | Problem | What to check |
 | --- | --- |
-| `python3: command not found` | Install Python 3 through your operating system's package manager. |
-| `No module named app` | Run the command from the repository root. |
-| `Address already in use` | Another process uses port 8000. Check for another running copy and stop it with `Ctrl+C`. |
-| `docker: unknown command: docker compose` | Try `docker-compose version`; standalone Compose v2 uses a hyphen. Otherwise follow the [Compose installation guide](https://docs.docker.com/compose/install/linux/). |
-| Permission denied for `/var/run/docker.sock` | Docker daemon access needs host administrator configuration. Do not make the socket world-writable. |
-| Compose reports the port is already allocated | Stop the local Python app or another container using port 8000. |
-| Container is unhealthy | Run `docker compose logs --tail=20 app` and check the health URL. |
-| Browser cannot connect | Confirm the server is running and use `http://127.0.0.1:8000`. |
-| Page says it cannot reach the service | Inspect the server terminal and try the health URL directly. |
+| `python3: command not found` | Install Python 3 using the operating system package manager. |
+| `No module named app` | Run commands from the repository root. |
+| `Address already in use` | Stop the process already using the selected port or choose another port. |
+| Docker Compose command missing | Check whether the system uses `docker compose` or standalone `docker-compose`. |
+| Permission denied for `/var/run/docker.sock` | Fix Docker access through normal host administration; do not make the socket world-writable. |
+| Container is unhealthy | Inspect `docker compose logs --tail=20 app` and test `/health`. |
+| Browser cannot connect | Confirm the service is running and verify the health endpoint directly. |
+| Nginx returns an upstream error | Confirm the backend service is running and listening on the configured loopback port. |
 
-## Phase 1 learning checkpoint
+## Project philosophy
 
-Before moving on, be able to explain what an HTTP route is, why the frontend requests JSON, what the health endpoint proves, and how a test detects a broken response. Try changing the page description, run the tests, and review the change with `git diff`.
-
-## Phase 2 learning checkpoint
-
-Explain the difference between an image and a container, why the server needs a different bind address inside Docker, and how to inspect logs and health. Before moving on, complete the container checks above and stop the stack with `docker compose down`.
-
-## Phase 3 learning checkpoint
-
-Explain why an error response can be a passing test, how `subTest` identifies a failing input, and why test commands must return a failure exit code. Run the full suite before each commit. Container verification remains a separate unfinished check alongside CI setup.
-
-## Phase 4 learning checkpoint
-
-Explain the difference between a workflow, a job, and a step, why CI calls the same script as local development, and why testing two Python versions is useful. Inspect a passing hosted run and practice the failing-check exercise above before treating this phase as verified.
+I am building this repository gradually and verifying each stage before calling it complete. The goal is a project I can explain in an interview, rebuild from documentation, and troubleshoot when something breaks — not simply a repository containing many DevOps tool names.
