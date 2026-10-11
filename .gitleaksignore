@@ -1,0 +1,3 @@
+# False positive: Phase 17 roadmap prose describing security controls, not a credential.
+# Limit the exception to this exact historical finding; keep all other scans.
+1d310347b6353619167ac1a878f4b414cb04ac62:ROADMAP.md:generic-api-key:23

@@ -142,4 +142,4 @@ jobs:
           python -m pip install bandit==1.9.4
           bandit -r app -ll
       - name: Scan tracked history for secrets
-        run: docker run --rm -v "$PWD:/repo:ro" zricethezav/gitleaks:v8.24.2 detect --source=/repo --redact --no-banner
+        run: docker run --rm -v "$PWD:/repo:ro" zricethezav/gitleaks:v8.24.2 detect --source=/repo --gitleaks-ignore-path=/repo/.gitleaksignore --redact --no-banner

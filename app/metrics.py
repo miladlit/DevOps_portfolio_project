@@ -22,7 +22,7 @@ class Metrics:
         route = path if path in ROUTES else "unknown"
         method = method if method in METHODS else "OTHER"
         with self._lock:
-            self._requests[(method, route, str(status))] += 1
+            self._requests[(method, route, str(int(status)))] += 1
             self._count += 1
             self._sum += duration
             for index, limit in enumerate(BUCKETS):

@@ -4,6 +4,7 @@ import json
 import threading
 import time
 import unittest
+from http import HTTPStatus
 from concurrent.futures import ThreadPoolExecutor
 from io import StringIO
 from unittest.mock import patch
@@ -15,6 +16,11 @@ from app.server import RequestHandler, StatusServer
 
 
 class MetricsTests(unittest.TestCase):
+    def test_http_status_enums_use_numeric_labels(self):
+        metrics = Metrics()
+        metrics.observe("POST", "/health", HTTPStatus.NOT_IMPLEMENTED, 0.01)
+        self.assertIn('status="501"} 1', metrics.render(0).decode())
+
     def test_cumulative_histogram_and_totals(self):
         metrics = Metrics()
         for duration in (0.001, 0.05, 6.0):
