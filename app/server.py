@@ -2,11 +2,14 @@
 
 import json
 import os
+import sys
 import time
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
+
+from app.metrics import Metrics, ROUTES
 
 
 INDEX_FILE = Path(__file__).parent / "static" / "index.html"
@@ -17,11 +20,47 @@ class StatusServer(ThreadingHTTPServer):
         super().__init__(server_address, handler_class)
         self.started_at = datetime.now(timezone.utc).isoformat()
         self.started_monotonic = time.monotonic()
+        self.metrics = Metrics()
 
 
 class RequestHandler(BaseHTTPRequestHandler):
+    def handle_one_request(self):
+        self._request_started = time.monotonic()
+        self._response_status = None
+        try:
+            super().handle_one_request()
+        finally:
+            if self._response_status is not None:
+                duration = max(0, time.monotonic() - self._request_started)
+                try:
+                    path = urlsplit(self.path).path
+                except ValueError:
+                    path = "unknown"
+                self.server.metrics.observe(self.command, path, self._response_status, duration)
+                # Avoid query strings, client identifiers and arbitrary paths in logs.
+                print(json.dumps({
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "event": "http_request",
+                    "method": self.command,
+                    "route": path if path in ROUTES else "unknown",
+                    "status": self._response_status,
+                    "duration_seconds": round(duration, 6),
+                }), file=sys.stderr, flush=True)
+
+    def send_response(self, code, message=None):
+        self._response_status = code
+        super().send_response(code, message)
+
+    def log_message(self, format, *args):
+        # One structured record is emitted after each request instead.
+        pass
+
     def do_GET(self):
-        path = urlsplit(self.path).path
+        try:
+            path = urlsplit(self.path).path
+        except ValueError:
+            self.send_json(400, {"error": "Invalid request path"})
+            return
 
         if path == "/":
             self.send_body(200, INDEX_FILE.read_bytes(), "text/html; charset=utf-8")
@@ -34,6 +73,10 @@ class RequestHandler(BaseHTTPRequestHandler):
             })
         elif path == "/health":
             self.send_json(200, {"status": "ok"})
+        elif path == "/metrics":
+            self.send_body(200, self.server.metrics.render(
+                time.monotonic() - self.server.started_monotonic
+            ), "text/plain; version=0.0.4; charset=utf-8")
         else:
             self.send_json(404, {"error": "Not found"})
 
@@ -48,6 +91,8 @@ class RequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(body)

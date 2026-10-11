@@ -6,7 +6,29 @@ The application is **Service Status**: a small web page that displays the servic
 
 ## Current stage
 
-Phase 7 preparation: an Nginx reverse proxy configuration and verification guide are added. Phase 6 Linux service configuration is ready; installation on a VM is pending. Phase 5 release packaging, smoke checks, and a CI artifact delivery job are added. Phase 4 GitHub Actions CI configuration is added for the automated HTTP tests. Its first hosted run is pending a push to GitHub. Phase 2 container runtime verification is still pending local Docker access. There are no cloud resources yet. Future work is tracked in [ROADMAP.md](ROADMAP.md).
+The application, HTTP tests, release packaging, Linux service, and Nginx proxy are built. This iteration adds application metrics and structured request logging, Prometheus/Grafana and Elastic labs, Terraform for Azure, Ansible deployment, Kubernetes/Helm, Jenkins, and configuration/security CI. Local application tests pass; external runtime verification remains tracked in [ROADMAP.md](ROADMAP.md). No cloud resources have been created.
+
+See the [architecture and design decisions](docs/ARCHITECTURE.md), [security scope](SECURITY.md), and [troubleshooting incident](docs/INCIDENT.md).
+
+| Lab | Instructions |
+| --- | --- |
+| Prometheus and Grafana | [Monitoring](monitoring/README.md) |
+| Structured logs and Elastic | [Logging](logging/README.md) |
+| Terraform and Azure | [Infrastructure](infra/terraform/README.md) |
+| Ansible service deployment and rollback | [Automation](deploy/ansible/README.md) |
+| Kubernetes and Helm | [Local cluster](deploy/kubernetes/README.md) |
+| Jenkins | Agent requirements in [architecture](docs/ARCHITECTURE.md) |
+
+Development-only configuration validation needs `requirements-dev.txt`; the app still has no runtime packages:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -r requirements-dev.txt
+PYTHONPATH=. python3 scripts/validate-config.py
+bash scripts/test.sh
+```
+
 
 ## Run locally
 
@@ -83,7 +105,7 @@ bash scripts/test-container.sh
 
 This builds a uniquely tagged image and runs an isolated container on a temporary loopback port, leaving port 8000 free. It waits for Docker health status, checks the health JSON and homepage through the published port, and verifies UID 10001. It prints container logs on failure and removes its temporary container and image on exit. Docker build cache remains available. This check exercises the Dockerfile; use the Compose commands above to verify Compose separately.
 
-CI runs the same check in a dedicated job. Release packaging requires the Python tests, Nginx tests, and container check to pass. Local Docker execution and the first hosted run remain pending.
+CI runs the same check in a dedicated job. Release packaging requires Python tests, Nginx tests, the container check, configuration validation, and security scans to pass. Local Docker execution and the first hosted run remain pending.
 
 ### What the new files do
 
@@ -111,10 +133,11 @@ The Python tests and Compose configuration can be checked without Docker daemon 
 | `GET /api/info` | Return the application name and version |
 | `GET /api/status` | Return UTC startup time and uptime in seconds |
 | `GET /health` | Report that the HTTP service can respond |
+| `GET /metrics` | Prometheus request counters, duration histogram, and uptime |
 
 Uptime is measured with a monotonic clock and resets when the server restarts. `/api/status` returns `started_at` (an ISO 8601 UTC timestamp) and `uptime_seconds` (a number). Responses include `Cache-Control: no-store` so checks use fresh data.
 
-Unknown routes return HTTP `404` with a JSON error. Requests are logged to the terminal.
+Unknown routes return HTTP `404` with a JSON error. Completed requests emit JSON records to stderr; see [logging](logging/README.md).
 
 The health check only checks this process. It does not check a database or external service, because there are none yet. Python's built-in HTTP server is suitable for this local learning stage; we will revisit the server before deployment. Direct Python runs listen only on the local machine; the container uses the networking settings explained above.
 
@@ -173,7 +196,7 @@ The workflow checks Python HTTP behavior, Nginx forwarding, and Docker image bui
 
 ### Download a verified CI release
 
-The **Build verified release** job depends on both Python test jobs, the Nginx integration job, and the container smoke check. If any required test fails, packaging and upload do not run. The release job packages the checked-out commit, smoke-tests the extracted application, verifies its SHA-256 checksum, then uploads the archive and checksum together as `service-status-<commit>`. No deployment credentials are required.
+The **Build verified release** job depends on both Python test jobs, the Nginx integration job, the container smoke check, configuration validation (YAML/metrics, Helm, Terraform, Ansible), and security scans (Bandit and Gitleaks). If any required test fails, packaging and upload do not run. The release job packages the checked-out commit, smoke-tests the extracted application, verifies its SHA-256 checksum, then uploads the archive and checksum together as `service-status-<commit>`. No deployment credentials are required.
 
 After a successful hosted run, open **Actions → CI → the run → Artifacts**, download the release artifact, and unzip it. From the extracted artifact directory, run:
 
@@ -247,7 +270,7 @@ The script checks `/health`, requires HTTP success and the expected JSON payload
 
 The [proxy setup guide](deploy/nginx/README.md) routes loopback port 8080 to the app on port 8000, with request forwarding, logs, and a stopped-upstream exercise. Follow it after verifying the Linux service. Nginx integration tests now validate the proxy when an executable is available, and a dedicated CI job runs them. Installed VM verification remains pending.
 
-See [roadmap progress](ROADMAP.md#progress-and-remaining-work) for what is complete and what remains: 2 phases complete locally, 5 partly built, and 11 later phases not started.
+See [roadmap progress](ROADMAP.md#progress-and-remaining-work) for verified behavior and the runtime checks still pending.
 
 ## Project structure
 
@@ -257,10 +280,12 @@ See [roadmap progress](ROADMAP.md#progress-and-remaining-work) for what is compl
 app/
   __init__.py           Python package marker
   server.py             HTTP routes and local server entry point
+  metrics.py            Thread-safe bounded Prometheus metrics
   static/
     index.html          Frontend, styles, and browser JavaScript
 tests/
   test_server.py        HTTP success, error, and regression tests
+  test_metrics.py       Metrics concurrency, exposition, and JSON request logs
   test_check.py         Operational health-check success and failure tests
   test_proxy.py         Optional live Nginx forwarding and failure tests
 scripts/
@@ -268,6 +293,7 @@ scripts/
   check.sh              Check a running service with curl and JSON validation
   release.py            Package and smoke-test a committed application
   rehearse.py           Rehearse local deployment and rollback
+  validate-config.py    Parse operational configuration and metric exposition
 deploy/
   README.md             Linux installation, operation, and rollback guide
   systemd/
@@ -275,6 +301,16 @@ deploy/
   nginx/
     service-status.conf   Loopback reverse proxy site
     README.md             Proxy setup and failure verification
+infra/terraform/       Azure VM, SSH-only network, variables, provider lock
+monitoring/            Prometheus alerts and provisioned Grafana dashboard
+logging/               Optional Elastic JSON-file ingestion lab
+deploy/ansible/        Verified-release configuration and rollback
+deploy/kubernetes/     Local kind deployment and recovery exercise
+deploy/helm/           Chart with default and dev environments
+docs/                  Architecture, incident, and verification evidence
+Jenkinsfile            Alternative test/container/package pipeline
+SECURITY.md            Implemented controls and remaining security scope
+requirements-dev.txt   Development-only configuration validators
 Dockerfile             Package the application with Python
 compose.yaml           Container run settings and health check
 .dockerignore          Limit files sent to the image build
@@ -301,6 +337,7 @@ For later work, use a focused branch, for example `feat/docker-compose`. Write c
 | Problem | What to check |
 | --- | --- |
 | `python3: command not found` | Install Python 3 through your operating system's package manager. |
+| `No module named pip` or venv reports `ensurepip` missing | Install your distribution's Python pip/venv packages (on Debian/Ubuntu, `python3-pip` and `python3-venv`) for development validators; the app does not require them. |
 | `No module named app` | Run the command from the repository root. |
 | `Address already in use` | Another process uses port 8000. Check for another running copy and stop it with `Ctrl+C`. |
 | `docker: unknown command: docker compose` | Try `docker-compose version`; standalone Compose v2 uses a hyphen. Otherwise follow the [Compose installation guide](https://docs.docker.com/compose/install/linux/). |

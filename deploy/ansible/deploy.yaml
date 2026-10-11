@@ -1,0 +1,121 @@
+---
+- name: Install a verified Service Status release
+  hosts: app
+  become: true
+  vars:
+    release_root: /opt/service-status/releases
+    repository_root: "{{ playbook_dir }}/../.."
+  pre_tasks:
+    - name: Require a commit and archive checksum
+      ansible.builtin.assert:
+        that:
+          - release_commit is defined
+          - release_commit is match('^[0-9a-f]{40}$')
+          - release_sha256 is defined
+          - release_sha256 is match('^[0-9a-f]{64}$')
+        fail_msg: Supply release_commit and release_sha256 for the verified archive.
+    - name: Install runtime packages
+      ansible.builtin.apt:
+        name: [python3, curl, nginx]
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+  tasks:
+    - name: Create service group
+      ansible.builtin.group:
+        name: service-status
+        system: true
+    - name: Create service user
+      ansible.builtin.user:
+        name: service-status
+        group: service-status
+        system: true
+        create_home: false
+        shell: /usr/sbin/nologin
+    - name: Create release directory
+      ansible.builtin.file:
+        path: "{{ release_root }}/{{ release_commit }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+    - name: Copy release archive
+      ansible.builtin.copy:
+        src: "{{ repository_root }}/dist/service-status-{{ release_commit }}.tar.gz"
+        dest: "/var/tmp/service-status-{{ release_commit }}.tar.gz"
+        owner: root
+        group: root
+        mode: '0644'
+    - name: Read archive checksum
+      ansible.builtin.stat:
+        path: "/var/tmp/service-status-{{ release_commit }}.tar.gz"
+        checksum_algorithm: sha256
+      register: archive
+    - name: Verify archive before extracting
+      ansible.builtin.assert:
+        that: archive.stat.checksum == release_sha256
+    - name: Extract immutable release
+      ansible.builtin.unarchive:
+        src: "/var/tmp/service-status-{{ release_commit }}.tar.gz"
+        dest: "{{ release_root }}/{{ release_commit }}"
+        remote_src: true
+        creates: "{{ release_root }}/{{ release_commit }}/release.json"
+      notify: Restart application
+    - name: Select release
+      ansible.builtin.file:
+        src: "{{ release_root }}/{{ release_commit }}"
+        dest: /opt/service-status/current
+        state: link
+        owner: root
+        group: root
+      notify: Restart application
+    - name: Install systemd unit
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../systemd/service-status.service"
+        dest: /etc/systemd/system/service-status.service
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Restart application
+    - name: Install loopback proxy
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../nginx/service-status.conf"
+        dest: /etc/nginx/conf.d/service-status.conf
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Reload nginx
+    - name: Validate nginx configuration
+      ansible.builtin.command: /usr/sbin/nginx -t
+      changed_when: false
+    - name: Start application
+      ansible.builtin.systemd_service:
+        name: service-status
+        enabled: true
+        state: started
+        daemon_reload: true
+    - name: Start proxy
+      ansible.builtin.systemd_service:
+        name: nginx
+        enabled: true
+        state: started
+    - name: Apply pending restarts before checking health
+      ansible.builtin.meta: flush_handlers
+    - name: Check application through proxy
+      ansible.builtin.uri:
+        url: http://127.0.0.1:8080/health
+        return_content: true
+      register: health
+      until: health.status == 200 and health.json.status == 'ok'
+      retries: 10
+      delay: 2
+  handlers:
+    - name: Restart application
+      ansible.builtin.systemd_service:
+        name: service-status
+        state: restarted
+        daemon_reload: true
+    - name: Reload nginx
+      ansible.builtin.systemd_service:
+        name: nginx
+        state: reloaded

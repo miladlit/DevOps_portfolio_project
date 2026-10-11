@@ -1,6 +1,6 @@
 # Project roadmap
 
-Build on the same Service Status application one small stage at a time. Phase 1 is complete. Phase 2 configuration is added; image build and runtime verification are pending Docker daemon access. Phase 3 adds HTTP regression tests and a Bash test runner. Phase 4 adds a GitHub Actions workflow; hosted verification is pending. Each later phase should add one or two concepts, leave the application working, and update the README with commands that have been verified.
+Build on the same Service Status application in stages. Every planned phase now has application code, operational configuration, or documentation. Runtime completion is recorded separately: local HTTP/metrics tests pass, while Docker, hosted CI, VM/cloud, observability stacks, Jenkins, and cluster exercises still require their execution environments. A configuration file is not evidence of a successful deployment.
 
 | Phase | Focus | Working result / completion check |
 | --- | --- | --- |
@@ -11,17 +11,17 @@ Build on the same Service Status application one small stage at a time. Phase 1 
 | 5 | CD/deployment pipeline | Added commit-versioned archives, SHA-256 checksums, and extracted-release HTTP smoke checks; added an automated previous/candidate/previous process-switch rehearsal on one temporary port. Added a test-gated CI package/checksum/artifact job. Pending: verify hosted artifact upload and download; connect a server in Phase 6. |
 | 6 | Linux server deployment | Added a systemd unit, Bash health-check script, failure-path tests, and VM installation/rollback guide. Pending: install on a VM and verify startup, restart, logs, and rollback. |
 | 7 | Nginx reverse proxy | Added loopback proxy configuration, setup guide, live forwarding/failure tests, and a dedicated CI job. Local proxy validation and both live tests passed with Nginx 1.28.3. Pending: hosted test execution and installed VM verification. |
-| 8 | Terraform infrastructure | Describe the intended infrastructure in code and review its plan before provisioning. |
-| 9 | Azure deployment | Provision and deploy to Azure with a cost estimate and documented teardown. |
-| 10 | Ansible configuration | Configure the server repeatably; a second run should make no unnecessary changes. |
-| 11 | Prometheus monitoring | Expose and scrape useful application metrics; verify a query. |
-| 12 | Grafana dashboards | Create a small dashboard for traffic, errors, and latency using real metrics. |
-| 13 | Centralized logging with Elastic Stack | Ship structured application logs, search for a failed request, and document resource needs. |
-| 14 | Jenkins pipeline | Reproduce the existing build/test workflow in Jenkins and explain its tradeoffs against GitHub Actions. |
-| 15 | Kubernetes | Deploy to a local cluster with health probes and demonstrate recovery from a stopped pod. |
-| 16 | Helm | Package the working Kubernetes deployment with environment-specific values. |
-| 17 | Security improvements, secrets, and scanning | Review access, move deployment secrets into an appropriate secret store, and add useful scanning checks. |
-| 18 | Documentation and portfolio cleanup | Verify setup instructions, add an architecture diagram, and document a troubleshooting incident and design decisions. |
+| 8 | Terraform infrastructure | Azure VM/network/SSH resources and variables added; local format/validation checks. Pending: authenticated plan review. |
+| 9 | Azure deployment | SSH-tunnel deployment guide, cost worksheet, and teardown commands added. Pending: dated pricing quote, provision/deploy/destroy exercise. |
+| 10 | Ansible configuration | Verified-archive deployment, systemd/Nginx configuration, handlers, health check, and explicit rollback added. Pending: VM execution and changed=0 second run. |
+| 11 | Prometheus monitoring | Thread-safe request counters, latency histogram, uptime, scrape and alert configuration added; HTTP/concurrency/exposition tests. Pending: live scrape/query/alert exercise. |
+| 12 | Grafana dashboards | Provisioned Prometheus source and five-panel dashboard added. Pending: live dashboard verification. |
+| 13 | Centralized logging with Elastic Stack | Structured request logs and optional file-to-Logstash/Elasticsearch/Kibana lab added, with resource/cleanup guide. Pending: ingestion and failed-request search. |
+| 14 | Jenkins pipeline | Tests/container/package/checksum/archive pipeline and runner tradeoffs documented. Pending: actual Jenkins agent run. |
+| 15 | Kubernetes | Two-replica deployment, internal Service, probes, limits, security context, and kind recovery guide added. Pending: local cluster execution. |
+| 16 | Helm | Chart with default/dev values added; both linted and rendered locally. Pending: install/upgrade/rollback in a cluster. |
+| 17 | Security improvements, secrets, and scanning | Response headers, restricted execution/access, secret exclusions, Bandit/Gitleaks CI, Dependabot, and security scope added. Pending: hosted scans and production access/TLS/secret-store review. |
+| 18 | Documentation and portfolio cleanup | Architecture diagram, design decisions, upstream-branch incident, lab runbooks, and honest verification record added. Pending: runtime evidence/screenshots from external labs. |
 
 Security basics apply throughout: do not commit secrets, avoid unnecessary public exposure, and review dependencies when adding them. Phase 17 deepens those practices.
 
@@ -31,11 +31,11 @@ These phases are a direction, not a requirement to run every tool at once. Revis
 
 There are 18 planned phases. This is a learning roadmap, not a time estimate: later phases vary substantially in size.
 
-- **2 complete locally:** Phase 1 application and Phase 3 automated testing.
-- **5 built or partly built, awaiting further work:** Phase 2 local Docker/Compose and hosted container verification; Phase 4 hosted CI and failed-check exercise; Phase 5 hosted release delivery; Phase 6 VM installation and recovery checks; Phase 7 hosted proxy tests and installed VM checks (local proxy tests pass).
-- **11 later phases not started:** Phases 8–18, covering Terraform, Azure, Ansible, monitoring, centralized logging, Jenkins, Kubernetes, Helm, deeper security, and portfolio cleanup.
+- **Verified locally:** basic application and HTTP regression suite, metrics accounting/concurrency/HTTP logs, Helm default/dev lint and rendering, configuration parsing. See [verification evidence](docs/VERIFICATION.md) for final checks and exact limitations.
+- **Built, awaiting runtime evidence:** Docker/Compose, hosted CI/artifacts/security scans, VM service/proxy, Azure/Terraform deployment, Ansible idempotence, Prometheus/Grafana, Elastic ingestion, Jenkins, Kubernetes and Helm runtime.
+- **Cloud activity:** none. A cost worksheet and teardown steps exist; a subscription-specific quote and plan review are still required before provisioning.
 
-The next useful milestone is verifying the existing Docker, CI, Linux service, and proxy setup. A working deployment with CI and basic monitoring can be a useful portfolio milestone before attempting every later tool. Do not treat a configuration file as a completed runtime deployment.
+The repository now contains the planned learning implementations. The project is not end-to-end deployment-verified until the pending runtime exercises above pass.
 
 ## Routine for each stage
 

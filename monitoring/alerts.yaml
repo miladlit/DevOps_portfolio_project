@@ -1,0 +1,17 @@
+groups:
+  - name: service-status
+    rules:
+      - alert: ServiceStatusDown
+        expr: up{job="service-status"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Service Status cannot be scraped
+      - alert: ServiceStatusServerErrors
+        expr: sum(rate(service_status_http_requests_total{status=~"5.."}[5m])) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Service Status is returning server errors

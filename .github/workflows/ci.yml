@@ -65,7 +65,7 @@ jobs:
 
   release:
     name: Build verified release
-    needs: [tests, proxy, container]
+    needs: [tests, proxy, container, configuration, security]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -91,3 +91,55 @@ jobs:
             dist/*.sha256
           if-no-files-found: error
           retention-days: 14
+
+  configuration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install validation dependencies
+        run: python -m pip install -r requirements-dev.txt 'ansible-core==2.18.3'
+      - name: Parse configuration and metrics
+        run: PYTHONPATH=. python scripts/validate-config.py
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.17.2
+      - name: Validate Helm environments
+        run: |
+          helm lint deploy/helm/service-status
+          helm lint deploy/helm/service-status -f deploy/helm/service-status/values-dev.yaml
+          helm template service-status deploy/helm/service-status > /tmp/rendered.yaml
+          python -c "import yaml; list(yaml.safe_load_all(open('/tmp/rendered.yaml')))"
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.11.2'
+      - name: Validate Terraform without provisioning
+        working-directory: infra/terraform
+        run: |
+          terraform fmt -check
+          terraform init -backend=false
+          terraform validate
+      - name: Validate Ansible without connecting to a server
+        run: ansible-playbook -i deploy/ansible/inventory.example.ini deploy/ansible/deploy.yaml --syntax-check
+  security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Scan Python application
+        run: |
+          python -m pip install bandit==1.9.4
+          bandit -r app -ll
+      - name: Scan tracked history for secrets
+        run: docker run --rm -v "$PWD:/repo:ro" zricethezav/gitleaks:v8.24.2 detect --source=/repo --redact --no-banner
