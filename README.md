@@ -71,6 +71,20 @@ Open **http://127.0.0.1:9000** for this run. The default port is 8000; invalid v
 
 `curl -I` sends a `HEAD` request. All GET routes also support HEAD, returning the same status and headers without a response body. Unknown HEAD routes return `404` without a body.
 
+### Identify the running release
+
+Set `APP_NAME` and `APP_VERSION` at startup to distinguish environments and releases. The dashboard and `/api/info` display these values:
+
+```bash
+APP_NAME="Portfolio staging" APP_VERSION="v0.2.0" python3 -m app.server
+curl http://127.0.0.1:8000/api/info
+# {"name": "Portfolio staging", "version": "v0.2.0"}
+```
+
+Defaults remain `Service Status` and `0.1.0`. Values are trimmed and must contain 1–128 characters with no remaining control characters; invalid values stop startup before opening the listening socket. Version values can be tags or commit IDs. These are operator-supplied labels, not proof of the deployed source revision. Changing them requires restarting the application; `/health` keeps its existing response.
+
+Compose forwards both variables, so run `APP_NAME="Portfolio staging" APP_VERSION="v0.2.0" docker compose up --build -d` to use them in the container. For systemd, add `Environment=APP_VERSION=v0.2.0` in a service override, then reload systemd and restart the service.
+
 ## Run with Docker Compose
 
 You need Docker Engine and Compose v2. The commands below use `docker compose`. If your installation provides the standalone v2 executable (as on this development machine), use `docker-compose` instead.
@@ -164,6 +178,7 @@ The HTTP tests start their own server on a temporary local port, make real HTTP 
 | Health, application info, and homepage | Confirm normal requests return the expected content. |
 | HEAD requests | Confirm successful and missing routes send headers without a body. |
 | Port configuration | Confirm default/custom ports and reject invalid values before startup. |
+| Release identity | Confirm default/custom names and versions, reject invalid configuration before startup, and keep separate server instances independent. |
 | Runtime status and cache headers | Confirm elapsed time, timezone-aware startup time, and fresh status responses. |
 | Unknown route | Confirm a missing page returns `404` with a JSON error. |
 | API requests with query strings | A query such as `?source=test` should not break route matching. |

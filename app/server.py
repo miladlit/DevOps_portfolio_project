@@ -16,8 +16,10 @@ INDEX_FILE = Path(__file__).parent / "static" / "index.html"
 
 
 class StatusServer(ThreadingHTTPServer):
-    def __init__(self, server_address, handler_class):
+    def __init__(self, server_address, handler_class, *, name="Service Status", version="0.1.0"):
         super().__init__(server_address, handler_class)
+        self.service_name = name
+        self.service_version = version
         self.started_at = datetime.now(timezone.utc).isoformat()
         self.started_monotonic = time.monotonic()
         self.metrics = Metrics()
@@ -65,7 +67,10 @@ class RequestHandler(BaseHTTPRequestHandler):
         if path == "/":
             self.send_body(200, INDEX_FILE.read_bytes(), "text/html; charset=utf-8")
         elif path == "/api/info":
-            self.send_json(200, {"name": "Service Status", "version": "0.1.0"})
+            self.send_json(200, {
+                "name": self.server.service_name,
+                "version": self.server.service_version,
+            })
         elif path == "/api/status":
             self.send_json(200, {
                 "started_at": self.server.started_at,
@@ -98,15 +103,24 @@ class RequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
 
+def configured_identity(variable, default):
+    value = os.environ.get(variable, default).strip()
+    if not value or len(value) > 128 or any(ord(char) < 32 or ord(char) == 127 for char in value):
+        raise SystemExit(f"{variable} must contain 1–128 characters without control characters.")
+    return value
+
+
 def main():
     host = os.environ.get("APP_HOST", "127.0.0.1")
+    name = configured_identity("APP_NAME", "Service Status")
+    version = configured_identity("APP_VERSION", "0.1.0")
     try:
         port = int(os.environ.get("APP_PORT", "8000"))
         if not 1 <= port <= 65535:
             raise ValueError
     except ValueError:
         raise SystemExit("APP_PORT must be an integer between 1 and 65535.") from None
-    with StatusServer((host, port), RequestHandler) as server:
+    with StatusServer((host, port), RequestHandler, name=name, version=version) as server:
         print(f"Service Status is listening on {host}:{server.server_port}", flush=True)
         try:
             server.serve_forever()

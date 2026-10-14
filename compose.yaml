@@ -3,6 +3,9 @@ name: devops-portfolio
 services:
   app:
     build: .
+    environment:
+      APP_NAME: "${APP_NAME-Service Status}"
+      APP_VERSION: "${APP_VERSION-0.1.0}"
     ports:
       - "127.0.0.1:8000:8000"
     healthcheck:

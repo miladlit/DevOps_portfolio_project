@@ -1,5 +1,11 @@
 # Verification evidence
 
+## Release identity update — 13 October 2026
+
+`bash scripts/test.sh` ran 27 tests: 25 passed and two Nginx integration tests were skipped because Nginx is unavailable. The suite ran outside the sandbox to allow temporary loopback sockets. New coverage checks trimmed/custom identity, invalid values rejected before startup, and two simultaneously running servers returning their own identities through real HTTP requests. `docker-compose config --quiet` and `git diff --check` passed. Container execution and browser display were not verified in this update; no commit, push, or deployment was performed.
+
+## Earlier baseline
+
 Recorded 11 October 2026. The application was tested on Python 3.14.4. New changes are local working-tree files; no commit, push, cloud deployment, or hosted CI run was performed during this implementation.
 
 | Check | Result |

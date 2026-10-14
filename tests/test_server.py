@@ -126,7 +126,10 @@ class ConfigurationTests(unittest.TestCase):
                 with patch.dict("os.environ", environment, clear=True):
                     with patch("app.server.StatusServer") as server_class, patch("builtins.print"):
                         main()
-                        server_class.assert_called_once_with(("127.0.0.1", expected_port), RequestHandler)
+                        server_class.assert_called_once_with(
+                            ("127.0.0.1", expected_port), RequestHandler,
+                            name="Service Status", version="0.1.0",
+                        )
                         server_class.return_value.__enter__.return_value.serve_forever.assert_called_once()
 
     def test_invalid_port_fails_before_startup(self):
@@ -137,3 +140,52 @@ class ConfigurationTests(unittest.TestCase):
                         with self.assertRaisesRegex(SystemExit, "APP_PORT must be an integer between 1 and 65535"):
                             main()
                         server_class.assert_not_called()
+
+    def test_custom_identity_is_trimmed_and_passed_to_server(self):
+        with patch.dict("os.environ", {"APP_NAME": "  Portfolio staging  ", "APP_VERSION": "  abc123  "}, clear=True):
+            with patch("app.server.StatusServer") as server_class, patch("builtins.print"):
+                main()
+                server_class.assert_called_once_with(
+                    ("127.0.0.1", 8000), RequestHandler,
+                    name="Portfolio staging", version="abc123",
+                )
+
+    def test_invalid_identity_fails_before_startup(self):
+        for variable in ("APP_NAME", "APP_VERSION"):
+            for value in ("", "   ", "x" * 129, "release\nnext", "release\tnext", "release\x7f"):
+                with self.subTest(variable=variable, value=value):
+                    with patch.dict("os.environ", {variable: value}, clear=True):
+                        with patch("app.server.StatusServer") as server_class:
+                            with self.assertRaisesRegex(SystemExit, variable + " must contain"):
+                                main()
+                            server_class.assert_not_called()
+
+
+class ReleaseIdentityTests(unittest.TestCase):
+    def test_servers_report_their_own_release_identity(self):
+        servers = []
+        threads = []
+        try:
+            for name, version in (("Portfolio staging", "abc123"), ("Portfolio live", "v2.0.0")):
+                server = StatusServer(("127.0.0.1", 0), RequestHandler, name=name, version=version)
+                servers.append(server)
+                thread = threading.Thread(target=server.serve_forever, daemon=True)
+                thread.start()
+                threads.append(thread)
+            for server in servers:
+                base_url = f"http://127.0.0.1:{server.server_port}"
+                with urlopen(base_url + "/api/info?source=deployment", timeout=5) as response:
+                    self.assertEqual(json.load(response), {
+                        "name": server.service_name, "version": server.service_version,
+                    })
+                with urlopen(Request(base_url + "/api/info", method="HEAD"), timeout=5) as response:
+                    self.assertEqual(response.status, 200)
+                    self.assertEqual(response.read(), b"")
+                with urlopen(base_url + "/health", timeout=5) as response:
+                    self.assertEqual(json.load(response), {"status": "ok"})
+        finally:
+            for server in servers:
+                server.shutdown()
+                server.server_close()
+            for thread in threads:
+                thread.join(timeout=5)
