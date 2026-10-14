@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
+from uuid import uuid4
 
 from app.metrics import Metrics, ROUTES
 
@@ -27,6 +28,7 @@ class StatusServer(ThreadingHTTPServer):
 
 class RequestHandler(BaseHTTPRequestHandler):
     def handle_one_request(self):
+        self._request_id = uuid4().hex
         self._request_started = time.monotonic()
         self._response_status = None
         try:
@@ -43,6 +45,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 print(json.dumps({
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "event": "http_request",
+                    "request_id": self._request_id,
                     "method": self.command,
                     "route": path if path in ROUTES else "unknown",
                     "status": self._response_status,
@@ -52,6 +55,7 @@ class RequestHandler(BaseHTTPRequestHandler):
     def send_response(self, code, message=None):
         self._response_status = code
         super().send_response(code, message)
+        self.send_header("X-Request-ID", self._request_id)
 
     def log_message(self, format, *args):
         # One structured record is emitted after each request instead.

@@ -3,6 +3,7 @@
 import json
 import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from unittest.mock import patch
 from urllib.error import HTTPError
@@ -117,6 +118,39 @@ class ServerTests(unittest.TestCase):
         with caught.exception as response:
             self.assertEqual(response.code, 404)
             self.assertEqual(response.read(), b"")
+
+    def test_request_ids_cover_success_errors_and_head(self):
+        request_ids = []
+        for method, path, status in (
+            ("GET", "/health", 200), ("HEAD", "/api/info", 200),
+            ("GET", "/missing", 404), ("HEAD", "/missing", 404),
+            ("POST", "/health", 501),
+        ):
+            with self.subTest(method=method, path=path):
+                request = Request(self.base_url + path, method=method,
+                                  headers={"X-Request-ID": "untrusted-client-value"})
+                try:
+                    response = urlopen(request, timeout=5)
+                except HTTPError as error:
+                    response = error
+                with response:
+                    self.assertEqual(response.code, status)
+                    request_id = response.headers["X-Request-ID"]
+                    self.assertRegex(request_id, r"^[0-9a-f]{32}$")
+                    request_ids.append(request_id)
+        self.assertEqual(len(set(request_ids)), len(request_ids))
+
+    def test_concurrent_requests_have_independent_ids(self):
+        def check_health(_):
+            with urlopen(self.base_url + "/health", timeout=5) as response:
+                self.assertEqual(json.load(response), {"status": "ok"})
+                return response.headers["X-Request-ID"]
+
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            request_ids = list(pool.map(check_health, range(12)))
+        self.assertEqual(len(set(request_ids)), 12)
+        for request_id in request_ids:
+            self.assertRegex(request_id, r"^[0-9a-f]{32}$")
 
 
 class ConfigurationTests(unittest.TestCase):

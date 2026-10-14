@@ -1,6 +1,8 @@
 # Local Elastic logging lab
 
-The app writes one JSON request event per completed response to stderr. Events include UTC timestamp, method, normalized route, response status, and server duration. They exclude query strings and client addresses. Startup text stays on stdout. This is request logging, not distributed tracing.
+The app writes one JSON request event per completed response to stderr. Events include UTC timestamp, request ID, method, normalized route, response status, and server duration. They exclude query strings and client addresses. Startup text stays on stdout. This is request logging, not distributed tracing.
+
+Use `curl -i http://127.0.0.1:8000/health` to see the `X-Request-ID` response header. Match that value to `request_id` in the JSON logs, or search `request_id : "<returned-id>"` in Kibana after ingestion. The server generates a fresh ID for each request and ignores client-supplied IDs; IDs are not Prometheus labels.
 
 This optional lab uses roughly 3 GB of container memory plus host overhead. Run it separately from other stacks on a small machine. Elasticsearch and Kibana host ports are loopback-only; Elasticsearch authentication is disabled for this isolated local exercise. Do not expose this configuration publicly. Docker daemon access is required.
 

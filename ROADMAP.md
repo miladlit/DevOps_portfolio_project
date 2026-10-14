@@ -29,6 +29,8 @@ These phases are a direction, not a requirement to run every tool at once. Revis
 
 ## Progress and remaining work
 
+Added per-request IDs in response headers and structured logs for troubleshooting. HTTP tests cover success/error/HEAD responses, ignored client-supplied IDs, concurrent uniqueness, and correlation between response headers and log records.
+
 Added configurable release identity through `APP_NAME` and `APP_VERSION`, exposed in `/api/info` and the dashboard, with Compose forwarding and startup validation. HTTP tests cover independent server identities and unchanged health behavior.
 
 There are 18 planned phases. This is a learning roadmap, not a time estimate: later phases vary substantially in size.

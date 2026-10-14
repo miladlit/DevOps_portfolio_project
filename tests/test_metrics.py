@@ -62,15 +62,19 @@ class ObservabilityHTTPTests(unittest.TestCase):
                 thread = threading.Thread(target=server.serve_forever, daemon=True)
                 thread.start()
                 base = f"http://127.0.0.1:{server.server_port}"
+                request_ids = []
                 try:
                     with urlopen(base + "/health?token=secret", timeout=5) as response:
                         self.assertEqual(response.headers["X-Content-Type-Options"], "nosniff")
+                        request_ids.append(response.headers["X-Request-ID"])
                         response.read()
                     with self.assertRaises(HTTPError) as caught:
                         urlopen(base + "/missing/private-value", timeout=5)
+                    request_ids.append(caught.exception.headers["X-Request-ID"])
                     caught.exception.close()
                     with self.assertRaises(HTTPError) as caught:
                         urlopen(Request(base + "/health", data=b"", method="POST"), timeout=5)
+                    request_ids.append(caught.exception.headers["X-Request-ID"])
                     caught.exception.close()
                     # The handler records after writing the response; wait for it.
                     deadline = time.monotonic() + 5
@@ -80,16 +84,20 @@ class ObservabilityHTTPTests(unittest.TestCase):
                         self.assertEqual(response.status, 200)
                         self.assertIn("version=0.0.4", response.headers["Content-Type"])
                         output = response.read().decode()
+                        request_ids.append(response.headers["X-Request-ID"])
                     self.assertIn('method="GET",route="/health",status="200"} 1', output)
                     self.assertIn('route="unknown",status="404"} 1', output)
                     self.assertIn('method="POST",route="/health",status="501"} 1', output)
+                    self.assertNotIn("request_id", output)
                     with urlopen(Request(base + "/metrics", method="HEAD"), timeout=5) as response:
                         self.assertEqual(response.read(), b"")
+                        request_ids.append(response.headers["X-Request-ID"])
                 finally:
                     server.shutdown()
                     thread.join(timeout=5)
         records = [json.loads(line) for line in logs.getvalue().splitlines()]
         self.assertEqual(len(records), 5)
+        self.assertEqual([record["request_id"] for record in records], request_ids)
         self.assertEqual([record["status"] for record in records[:3]], [200, 404, 501])
         self.assertTrue(all(record["duration_seconds"] >= 0 for record in records))
         self.assertNotIn("secret", logs.getvalue())
