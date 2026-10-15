@@ -13,7 +13,14 @@
       table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
       th, td { text-align: left; padding: 0.6rem 0.3rem; border-bottom: 1px solid #d8dfe8; }
       caption { text-align: left; margin-bottom: 0.5rem; }
-      button { padding: 0.6rem 1rem; cursor: pointer; }
+      button, select { padding: 0.6rem 1rem; font: inherit; }
+      button { cursor: pointer; }
+      button:disabled { cursor: default; opacity: 0.55; }
+      .controls { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+      .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.75rem; }
+      .stats div { padding: 0.75rem; background: #f5f7fa; border-radius: 6px; }
+      .stats dt { margin-top: 0; }
+      tr[data-result="Failed"], tr[data-result="Timed out"] { background: #fff3ee; }
     </style>
   </head>
   <body>
@@ -29,15 +36,32 @@
         <dt>Health</dt><dd id="health" role="status">Checking…</dd>
       </dl>
       <button id="refresh" type="button">Check again</button>
-      <p><label><input id="auto-refresh" type="checkbox"> Refresh every 10 seconds</label></p>
+      <p class="controls">
+        <label><input id="auto-refresh" type="checkbox"> Auto-refresh</label>
+        <label for="refresh-interval">Interval</label>
+        <select id="refresh-interval">
+          <option value="10000">10 seconds</option>
+          <option value="30000">30 seconds</option>
+          <option value="60000">60 seconds</option>
+        </select>
+      </p>
       <h2>Recent checks</h2>
       <p id="summary" role="status">No checks yet.</p>
+      <dl class="stats">
+        <div><dt>Success rate</dt><dd id="success-rate">—</dd></div>
+        <div><dt>Average duration</dt><dd id="average-duration">—</dd></div>
+        <div><dt>Slowest check</dt><dd id="slowest-duration">—</dd></div>
+      </dl>
       <table>
         <caption>Last 20 checks in this tab (newest first)</caption>
         <thead><tr><th scope="col">Time</th><th scope="col">Result</th><th scope="col">Duration</th></tr></thead>
         <tbody id="history"></tbody>
       </table>
-      <button id="clear-history" type="button">Clear history</button>
+      <div class="controls">
+        <button id="clear-history" type="button" disabled>Clear history</button>
+        <button id="download-history" type="button" disabled>Download CSV</button>
+      </div>
+      <p>Statistics cover the last 20 checks in this tab, including failures and timeouts. Reloading clears history.</p>
     </main>
     <script>
       const button = document.getElementById("refresh");
@@ -49,6 +73,7 @@
         history.replaceChildren();
         for (const check of checks) {
           const row = document.createElement("tr");
+          row.dataset.result = check.result;
           for (const value of [check.time, check.result, `${check.duration} ms`]) {
             const cell = document.createElement("td");
             cell.textContent = value;
@@ -60,7 +85,31 @@
         document.getElementById("summary").textContent = checks.length
           ? `${successful} of ${checks.length} recent checks succeeded.`
           : "No checks yet.";
+        document.getElementById("success-rate").textContent = checks.length
+          ? `${Math.round(100 * successful / checks.length)}%` : "—";
+        document.getElementById("average-duration").textContent = checks.length
+          ? `${Math.round(checks.reduce((sum, check) => sum + check.duration, 0) / checks.length)} ms` : "—";
+        document.getElementById("slowest-duration").textContent = checks.length
+          ? `${Math.max(...checks.map(check => check.duration))} ms` : "—";
+        document.getElementById("clear-history").disabled = checks.length === 0;
+        document.getElementById("download-history").disabled = checks.length === 0;
       }
+
+      document.getElementById("download-history").addEventListener("click", () => {
+        if (!checks.length) return;
+        const rows = [["timestamp_utc", "result", "duration_ms"],
+          ...checks.map(check => [check.timestamp, check.result, check.duration])];
+        const csv = rows.map(row => row.map(value =>
+          `"${String(value).replaceAll('"', '""')}"`).join(",")).join("\r\n") + "\r\n";
+        const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "service-status-checks.csv";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      });
 
       document.getElementById("clear-history").addEventListener("click", () => {
         checks.length = 0;
@@ -111,7 +160,8 @@
           controller.abort();
           const duration = Math.round(performance.now() - started);
           document.getElementById("duration").textContent = `${duration} ms`;
-          checks.unshift({ time: new Date().toLocaleTimeString(), result, duration });
+          const completed = new Date();
+          checks.unshift({ time: completed.toLocaleTimeString(), timestamp: completed.toISOString(), result, duration });
           checks.splice(20);
           renderHistory();
           button.disabled = false;
@@ -119,9 +169,16 @@
       }
 
       button.addEventListener("click", checkStatus);
-      setInterval(() => {
-        if (document.getElementById("auto-refresh").checked) checkStatus();
-      }, 10000);
+      let refreshTimer;
+      function configureRefresh() {
+        clearInterval(refreshTimer);
+        if (document.getElementById("auto-refresh").checked) {
+          refreshTimer = setInterval(checkStatus,
+            Number(document.getElementById("refresh-interval").value));
+        }
+      }
+      document.getElementById("auto-refresh").addEventListener("change", configureRefresh);
+      document.getElementById("refresh-interval").addEventListener("change", configureRefresh);
       checkStatus();
     </script>
   </body>

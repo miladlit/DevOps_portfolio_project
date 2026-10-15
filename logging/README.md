@@ -4,6 +4,23 @@ The app writes one JSON request event per completed response to stderr. Events i
 
 Use `curl -i http://127.0.0.1:8000/health` to see the `X-Request-ID` response header. Match that value to `request_id` in the JSON logs, or search `request_id : "<returned-id>"` in Kibana after ingestion. The server generates a fresh ID for each request and ignores client-supplied IDs; IDs are not Prometheus labels.
 
+## Summarize logs locally
+
+From the repository root, use Python's standard library to analyze a captured log without starting the Elastic stack:
+
+```bash
+python3 -m app.log_report logging/data/requests.jsonl
+python3 -m app.log_report logging/data/requests.jsonl --request-id <returned-id>
+```
+
+Replace `<returned-id>` with the response's actual ID (without angle brackets). You can also pipe JSONL into `python3 -m app.log_report`; stdin is the default input. Redirect stdout to save the JSON report.
+
+The report includes request and error counts, error percentage, mean/maximum server duration in seconds, and counts by status and normalized route. Errors mean HTTP 400–599. Statistics cover only valid records in the supplied input that match the optional exact request ID; they are not a long-term availability measurement. Older records without IDs still count unless a filter is supplied. Empty results have zero counts and `null` durations.
+
+Blank lines are skipped. Malformed JSON or request records increment `invalid_records`; other JSON event types increment `ignored_records`; valid requests excluded by the ID filter increment `filtered_records`. A partially written final record is invalid; rerun after the writer finishes to include it. Unknown routes are grouped as `unknown`, and raw records are never printed. Aggregation processes input one line at a time and keeps only status/route counts. Unreadable files or invalid UTF-8 exit with status 2; malformed records are counted while the report still exits successfully.
+
+## Run the Elastic lab
+
 This optional lab uses roughly 3 GB of container memory plus host overhead. Run it separately from other stacks on a small machine. Elasticsearch and Kibana host ports are loopback-only; Elasticsearch authentication is disabled for this isolated local exercise. Do not expose this configuration publicly. Docker daemon access is required.
 
 From the repository root, start the app in one terminal:

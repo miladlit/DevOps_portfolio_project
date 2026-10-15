@@ -29,6 +29,10 @@ These phases are a direction, not a requirement to run every tool at once. Revis
 
 ## Progress and remaining work
 
+Expanded the dashboard with selectable auto-refresh intervals, recent success/average/maximum duration statistics, failed-check highlighting, and CSV history downloads using UTC completion times.
+
+Added a standard-library JSONL log-report command with request-ID filtering, status/route counts, error rate, mean/maximum duration, and explicit invalid/ignored/filtered record counts. Tests cover aggregation, malformed input, legacy records, bounded route groups, file/stdin input, and CLI failures.
+
 Added per-request IDs in response headers and structured logs for troubleshooting. HTTP tests cover success/error/HEAD responses, ignored client-supplied IDs, concurrent uniqueness, and correlation between response headers and log records.
 
 Added configurable release identity through `APP_NAME` and `APP_VERSION`, exposed in `/api/info` and the dashboard, with Compose forwarding and startup validation. HTTP tests cover independent server identities and unchanged health behavior.

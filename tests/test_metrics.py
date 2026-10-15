@@ -12,6 +12,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from app.metrics import Metrics
+from app.log_report import summarize
 from app.server import RequestHandler, StatusServer
 
 
@@ -102,3 +103,8 @@ class ObservabilityHTTPTests(unittest.TestCase):
         self.assertTrue(all(record["duration_seconds"] >= 0 for record in records))
         self.assertNotIn("secret", logs.getvalue())
         self.assertNotIn("private-value", logs.getvalue())
+        report = summarize(logs.getvalue().splitlines())
+        self.assertEqual(report["requests"], 5)
+        self.assertEqual(report["errors"], 2)
+        self.assertEqual(report["invalid_records"], 0)
+        self.assertEqual(summarize(logs.getvalue().splitlines(), request_ids[0])["requests"], 1)
